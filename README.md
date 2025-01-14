@@ -23,68 +23,68 @@ fig.show()
 
 We are solving the convex optimization problem:
 
-\[
+$$
 \min_r \quad r
-\]
+$$
 
-subject to the constraint that for each point \( p_i \), the Euclidean
-distance from \( p_i \) to the center of the circle is less than or
-equal to the radius \( r \):
+subject to the constraint that for each point $p_i$, the Euclidean
+distance from $p_i$ to the center of the circle is less than or
+equal to the radius $r$:
 
-\[
+$$
 \| p_i - \text{center} \| \leq r, \quad \forall i = 1, 2, \dots, n
-\]
+$$
 
 Where:
 
-- \( p_i \) are the points in \( \mathbb{R}^d \).
-- \( \text{center} \) is the center of the circle we are trying to find.
-- \( r \) is the radius of the circle.
+- $p_i$ are the points in $\mathbb{R}^d$.
+- $\text{center}$ is the center of the circle we are trying to find.
+- $r$ is the radius of the circle.
 
-The goal is to minimize the radius \( r \) such that all points
+The goal is to minimize the radius $r$ such that all points
 lie inside or on the boundary of the circle.
 
 ---
 
-## Interpretation as a Min/Max Problem
+### Interpretation as a Min/Max Problem
 
-The constraint \( \| p_i - \text{center} \| \leq r \) implies that
-the radius \( r \) must be at least as large as the maximum distance
-from the center to any of the points \( p_i \).
+The constraint $\| p_i - \text{center} \| \leq r$ implies that
+the radius $r$ must be at least as large as the maximum distance
+from the center to any of the points $p_i$.
 
 If we define the distance from the center to each point as:
 
-\[
+$$
 d_i = \| p_i - \text{center} \|
-\]
+$$
 
-Then, the radius \( r \) must satisfy:
+Then, the radius $r$ must satisfy:
 
-\[
+$$
 r \geq \max_i d_i
-\]
+$$
 
 Thus, the optimization problem becomes:
 
-\[
+$$
 r = \min \max_i d_i
-\]
+$$
 
 This is a **min-max** problem, where we want to
 minimize the maximum distance from the center to any of the points.
-In other words, we are looking for the smallest possible radius \( r \)
+In other words, we are looking for the smallest possible radius $r$
 such that the maximum distance from the center to any point is minimized.
 
 ---
 
-## Geometric Interpretation
+### Geometric Interpretation
 
 Geometrically, the problem is about finding the **smallest enclosing circle**
 (or ball in higher dimensions) that contains all the given points.
 The center of the circle is positioned in such a way that the radius
 is minimized, but all points still lie inside or on the boundary of the circle.
 
-- **Convexity**: The objective function \( r = \min \max_i d_i \) is
+- **Convexity**: The objective function $r = \min \max_i d_i$ is
 convex, as the maximum of a set of convex functions is convex.
 Minimizing a convex function over a convex set is a convex optimization problem.
 
@@ -93,26 +93,3 @@ both the center and the radius of the circle.
 The optimal center minimizes the maximum distance to any of the points,
 and the optimal radius ensures all points are inside
 or on the boundary of the circle.
-
----
-
-## Relation to Welzl's Algorithm
-
-In 2D, this problem is often solved using **Welzl's algorithm**.
-Welzl's algorithm is a recursive method for finding the
-smallest enclosing circle. It works by:
-
-1. Randomly choosing a subset of points.
-2. Recursively refining the circle so that all points are inside or on its boundary.
-3. Ensuring the radius is minimized.
-
----
-
-## Conclusion
-
-The problem you're describing is a **min-max** optimization problem
-aimed at finding the smallest enclosing circle (or ball).
-The radius \( r \) is the smallest value that ensures all points
-lie within or on the boundary of the circle, and the goal
-is to minimize the maximum distance from the center to any
-point in the set.
