@@ -1,8 +1,6 @@
-# [cvxball](/book)
+# cvxball
 
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/cvxgrp/cvxball)
-
-We compute the smallest enclosing sphere for a set of points.
+We compute the smallest enclosing circle/ball for a set of points.
 
 ```bash
 # create a numpy array where each row corresponds to a point
