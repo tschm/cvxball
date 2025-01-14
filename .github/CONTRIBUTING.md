@@ -19,13 +19,11 @@ Before sending a pull request, make sure you do the following:
 ## Building cvxball from source
 
 You'll need to build cvxball locally in order to start editing code.
-Please install [task](https://taskfile.dev).
-
 To install cvxball from source, clone the Github
 repository, navigate to its root, and run the following command:
 
 ```bash
-task cvxball:install
+make install
 ```
 
 ## Contributing code
@@ -63,7 +61,7 @@ Before sending us a pull request, navigate to the project root
 and run
 
 ```bash
-task cvxball:fmt
+make fmt
 ```
 
 to make sure that your changes abide by our style conventions. Please fix any
@@ -87,13 +85,7 @@ We use `pytest` to run our unit tests.
 To run all unit tests run the following command:
 
 ```bash
-task cvxball:test
-```
-
-We keep a close eye on our coverage via
-
-```bash
-task cvxball:coverage
+make test
 ```
 
 Please make sure that your change doesn't cause any of the unit tests to fail.
