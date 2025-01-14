@@ -2,16 +2,25 @@
 name = 'cvxball'
 version = "0.0.0"
 description = "Fast computation of the smallest enclosing sphere"
-authors = [{name='cvxgrp', email= ''}]
+authors = [{name='Thomas Schmelzer', email= 'thomas.schmelzer@gmail.com'}]
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "cvxpy-base>=1.6.0",
+    "numpy>=2.2.1",
+    "scipy>=1.15.1",
+    "plotly>=5.24.1"
+]
 
 [project.urls]
-repository = ""
+repository = "https://github.com/cvxgrp/cvxball"
 
 [dependency-groups]
-dev = []
+dev = [
+    "pytest",
+    "pytest-cov",
+    "pre-commit"
+]
 
 [tool.ruff]
 line-length = 120

@@ -13,7 +13,7 @@ sphinx:
 
 # Information about where the book exists on the web
 repository:
-  url: 
+  url: https://github.com/cvxgrp/cvxball
   path_to_book: book
   branch: main
 
