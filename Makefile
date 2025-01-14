@@ -10,7 +10,7 @@ venv:
 .PHONY: install
 install: venv ## Install a virtual environment
 	@uv pip install --upgrade pip
-	@uv pip install -r requirements.txt
+	@uv sync --dev --frozen
 
 
 .PHONY: fmt
@@ -36,3 +36,9 @@ help:  ## Display this help screen
 marimo: install ## Install Marimo
 	@uv pip install marimo
 	@uv run marimo edit notebooks
+
+
+.PHONY: test
+test: install  ## Run pytests
+	@uv pip install pytest
+	@uv run pytest src/tests
