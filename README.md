@@ -1,5 +1,7 @@
 # cvxball
 
+This repository has been created using the [cradle](https://github.com/cvxgrp/cradle) cli.
+
 We compute the smallest enclosing circle/ball for a set of points.
 
 ```bash
