@@ -17,7 +17,8 @@ circle = min_circle_cvx(points, solver="CLARABEL")
 # display the points & the circle
 fig = create_figure()
 fig.add_trace(circle.scatter())
-fig.add_trace(Cloud(points).scatter())
+fig.add_trace(circle.center.scatter())
+fig.add_trace(Cloud(points).scatter(name="Cloud"))
 fig.show()
 
 ```
