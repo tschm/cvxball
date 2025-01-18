@@ -1,38 +1,30 @@
 .DEFAULT_GOAL := help
 
-folder = notebooks
+.PHONY: venv install fmt clean help test
 
 venv:
-	@curl -LsSf https://astral.sh/uv/install.sh | sh
-	@uv venv
+	curl -LsSf https://astral.sh/uv/install.sh | sh
+	uv venv
 
+install: venv ## Install dependencies and setup environment
+	uv pip install --upgrade pip
+	uv sync --dev --frozen
 
-.PHONY: install
-install: venv ## Install a virtual environment
-	@uv pip install --upgrade pip
-	@uv sync --dev --frozen
+fmt: venv ## Format and lint code
+	uv pip install pre-commit
+	uv run pre-commit install
+	uv run pre-commit run --all-files
 
+clean: ## Clean build artifacts and stale branches
+	git clean -X -d -f
+	git branch -v | grep "\[gone\]" | cut -f 3 -d ' ' | xargs git branch -D
 
-.PHONY: fmt
-fmt: venv ## Run autoformatting and linting
-	@uv pip install pre-commit
-	@uv run pre-commit install
-	@uv run pre-commit run --all-files
+test: install ## Run tests
+	uv pip install pytest
+	uv run pytest src/tests
 
-
-.PHONY: clean
-clean:  ## Clean up caches and build artifacts
-	@git clean -X -d -f
-	@git branch -v | grep "\[gone\]" | cut -f 3 -d ' ' | xargs git branch -D
-
-
-.PHONY: help
-help:  ## Display this help screen
-	@echo -e "\033[1mAvailable commands:\033[0m"
-	@grep -E '^[a-z.A-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' | sort
-
-
-.PHONY: test
-test: install  ## Run pytests
-	@uv pip install pytest
-	@uv run pytest src/tests
+help: ## Show this help message
+	@echo "Usage: make [target]"
+	@echo ""
+	@echo "Targets:"
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-15s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
