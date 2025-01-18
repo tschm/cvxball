@@ -12,9 +12,9 @@ We compute the smallest enclosing circle/ball for a set of points.
 
 ```bash
 # create a numpy array where each row corresponds to a point
-# Each row should have the same number of elements and they
-# can be higher than 2... :-)
 points = np.array([[2.0, 4.0], [0, 0], [2.5, 2.0]])
+
+# compute the circle, pick any solver supporting conic constraints
 circle = min_circle_cvx(points, solver="CLARABEL")
 
 # display the points & the circle
