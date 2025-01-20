@@ -115,7 +115,9 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "hexaly" },
     { name = "kaleido" },
+    { name = "mosek" },
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -131,7 +133,9 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "hexaly", index = "https://pip.hexaly.com/" },
     { name = "kaleido", specifier = "==0.2.1" },
+    { name = "mosek", specifier = "==10.2.1" },
     { name = "pre-commit", specifier = ">=4.0.1" },
     { name = "pytest", specifier = ">=8.3.4" },
     { name = "pytest-cov", specifier = ">=6.0.0" },
@@ -197,6 +201,19 @@ wheels = [
 ]
 
 [[package]]
+name = "hexaly"
+version = "13.0.20241205"
+source = { registry = "https://pip.hexaly.com/" }
+wheels = [
+    { url = "https://pip.hexaly.com/hexaly/hexaly-13.0.20241205-py2.py3.py27.py36.py37.py38.py39.py310.py311.py312.py313-none-linux_aarch64.whl" },
+    { url = "https://pip.hexaly.com/hexaly/hexaly-13.0.20241205-py2.py3.py27.py36.py37.py38.py39.py310.py311.py312.py313-none-linux_x86_64.whl" },
+    { url = "https://pip.hexaly.com/hexaly/hexaly-13.0.20241205-py2.py3.py27.py36.py37.py38.py39.py310.py311.py312.py313-none-macosx_10_11_x86_64.whl" },
+    { url = "https://pip.hexaly.com/hexaly/hexaly-13.0.20241205-py2.py3.py27.py36.py37.py38.py39.py310.py311.py312.py313-none-macosx_11_0_arm64.whl" },
+    { url = "https://pip.hexaly.com/hexaly/hexaly-13.0.20241205-py2.py3.py27.py36.py37.py38.py39.py310.py311.py312.py313-none-win32.whl" },
+    { url = "https://pip.hexaly.com/hexaly/hexaly-13.0.20241205-py2.py3.py27.py36.py37.py38.py39.py310.py311.py312.py313-none-win_amd64.whl" },
+]
+
+[[package]]
 name = "identify"
 version = "2.6.5"
 source = { registry = "https://pypi.org/simple" }
@@ -225,6 +242,21 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/a1/2b/680662678a57afab1685f0c431c2aba7783ce4344f06ec162074d485d469/kaleido-0.2.1-py2.py3-none-manylinux2014_aarch64.whl", hash = "sha256:845819844c8082c9469d9c17e42621fbf85c2b237ef8a86ec8a8527f98b6512a", size = 83711746 },
     { url = "https://files.pythonhosted.org/packages/88/89/4b6f8bb3f9ab036fd4ad1cb2d628ab5c81db32ac9aa0641d7b180073ba43/kaleido-0.2.1-py2.py3-none-win32.whl", hash = "sha256:ecc72635860be616c6b7161807a65c0dbd9b90c6437ac96965831e2e24066552", size = 62312480 },
     { url = "https://files.pythonhosted.org/packages/f7/9a/0408b02a4bcb3cf8b338a2b074ac7d1b2099e2b092b42473def22f7b625f/kaleido-0.2.1-py2.py3-none-win_amd64.whl", hash = "sha256:4670985f28913c2d063c5734d125ecc28e40810141bdb0a46f15b76c1d45f23c", size = 65945521 },
+]
+
+[[package]]
+name = "mosek"
+version = "10.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f6/b2/67425cb75c3fa2d72e41a9c2499e05d04c615123f9851223254c74527c65/Mosek-10.2.1-cp37-abi3-macosx_10_15_x86_64.whl", hash = "sha256:32330c98b5c4dbae85269172eb3f50e7f98da62f48fc22724132215365ae2dde", size = 14503084 },
+    { url = "https://files.pythonhosted.org/packages/bf/6f/ff96d09f74ff51f48f3f2631953dba8ca535b31663708288075c3b9f0ffc/Mosek-10.2.1-cp37-abi3-manylinux2014_x86_64.whl", hash = "sha256:0fda0c5105f7a1e911a0375247eb3faac0a1103ece69281b2792df10404d61ec", size = 15075322 },
+    { url = "https://files.pythonhosted.org/packages/e2/e3/334e9caf901c70314736724ed8e6cfc5c27d27353f47c32a6a9d5edd3f5b/Mosek-10.2.1-cp37-abi3-manylinux_2_29_aarch64.whl", hash = "sha256:40116af736538fffbff10cb27a2574ac9ebb130bb071a78ecfeb6e912e4ff2e2", size = 10405066 },
+    { url = "https://files.pythonhosted.org/packages/fe/f4/cb577c00b60b8090df74aa47b65966d033e455debd1fc4f8d607a9b5e996/Mosek-10.2.1-cp37-abi3-win_amd64.whl", hash = "sha256:214e38686d7637d673f3bef8aff1caade60e53a72a1fd4543c3be3bf304489f5", size = 19494364 },
+    { url = "https://files.pythonhosted.org/packages/70/9f/7933c008a982a49841279a6a93445243b975c0d4f32a4eb5cd1bbf7c58da/Mosek-10.2.1-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:8cced1ae2e4951552da708d574bca4aef2c43d6f15fe1babc43bfe73989648c5", size = 7812691 },
 ]
 
 [[package]]
