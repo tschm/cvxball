@@ -17,10 +17,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout [${{ github.repository }}]
+        uses: actions/checkout@v4
 
       - name: Generate Tag
         uses: cvxgrp/.github/actions/uv/tag@v2.0.8
-        id: tag_version
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
