@@ -12,6 +12,6 @@ jobs:
 
     steps:
       - name: Generate Tag
-        uses: cvxgrp/.github/actions/uv/tag@v2.0.15
+        uses: cvxgrp/.github/actions/uv/tag@v2.0.17
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
