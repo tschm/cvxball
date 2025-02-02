@@ -12,15 +12,17 @@ jobs:
           source-folder: 'src/cvx'
           tests-folder: 'src/tests'
 
-  deptry:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: cvxgrp/.github/actions/uv/deptry@v2.0.17
-        with:
-          source-folder: 'src/cvx'
-
-
   pre-commit:
     runs-on: ubuntu-latest
     steps:
-      - uses: cvxgrp/.github/actions/uv/pre-commit@v2.0.17
+      - uses: cvxgrp/.github/actions/pre-commit@v2.1.0
+
+  deptry:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Build the virtual environment for ${{ github.repository }}"
+        uses: cvxgrp/.github/actions/uv/environment@v2.1.0
+
+      - uses: cvxgrp/.github/actions/deptry@v2.1.0
+        with:
+          source-folder: src/cvx
