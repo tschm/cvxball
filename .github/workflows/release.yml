@@ -13,8 +13,8 @@ jobs:
     steps:
       - name: "Build the virtual environment for ${{ github.repository }}"
         uses: cvxgrp/.github/actions/uv/environment@v2.1.0
-      
+
       - name: Generate Tag
         uses: cvxgrp/.github/actions/tag@v2.1.0
-        with:    
+        with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
