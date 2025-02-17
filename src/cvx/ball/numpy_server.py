@@ -1,9 +1,9 @@
 import threading  # Module for creating and managing threads; used for thread safety with locking.
 
 import loguru  # Logging library that simplifies logging setup and usage.
-import numpy as np  # NumPy library for numerical operations (e.g., handling arrays and matrices).
-import pyarrow as pa  # PyArrow for handling Arrow data formats, including tables and arrays.
 import pyarrow.flight as fl  # PyArrow's Flight module to handle gRPC-based data transfer with Arrow.
+
+from .utils.alter import np_2_pa, pa_2_np
 
 
 class NumpyServer(fl.FlightServerBase):
@@ -30,43 +30,6 @@ class NumpyServer(fl.FlightServerBase):
     def logger(self):
         """Getter for the logger."""
         return self._logger
-
-    @staticmethod
-    def _handle_arrow_table(table, logger) -> dict[str, np.ndarray]:
-        """
-        Process an Arrow Table and convert the data into matrices.
-
-        :param table: The Arrow Table to process.
-        :param logger: Logger used for logging the steps.
-        :return: A dictionary where keys are matrix names and values are NumPy arrays representing the matrices.
-        """
-        # Directly work with the Arrow Table (no Polars)
-        logger.info(f"Handling Arrow Table: {table}")
-        logger.info(f"Names: {table.schema.names}")
-
-        matrices = {}
-        for name in table.schema.names:
-            logger.info(f"Name: {name}")
-            struct = table.column(name)[0].as_py()  # Extract the structure for the given column name.
-
-            # Extract the matrix and shape data from the Arrow Table
-            matrix_data = np.array(struct["data"])  # Flattened matrix data (converted to NumPy array).
-            shape = np.array(struct["shape"])  # Shape of the matrix.
-
-            logger.info(f"Matrix (flattened): {matrix_data}")
-            logger.info(f"Shape: {shape}")
-
-            # Validate if the matrix data length matches the expected shape
-            if len(matrix_data) != np.prod(shape):
-                raise fl.FlightServerError("Data length does not match the provided shape")
-
-            # Reshape the flattened matrix data based on the shape
-            matrix = matrix_data.reshape(shape)
-            logger.info(f"Reshaped Matrix: {matrix}")
-
-            matrices[name] = matrix  # Store the matrix in the dictionary with the name as key.
-
-        return matrices
 
     @staticmethod
     def _extract_command_from_ticket(ticket):
@@ -123,11 +86,11 @@ class NumpyServer(fl.FlightServerBase):
         self.logger.info(f"Retrieved data for command: {command}")
 
         # Process the table to extract matrices
-        matrices = NumpyServer._handle_arrow_table(table, logger=self.logger)
+        matrices = pa_2_np(table)
 
         # Compute results (e.g., perform computations based on matrices)
         result_table = self.f(matrices)
-
+        self.logger.info(result_table.schema.names)
         self.logger.info("Computation completed. Returning results.")
 
         # Create and return a RecordBatchStream with the result
@@ -135,7 +98,7 @@ class NumpyServer(fl.FlightServerBase):
         return stream
 
     @classmethod
-    def start(cls, port=5008, logger=None, **kwargs):
+    def start(cls, port=5008, logger=None, **kwargs):  # pragma: no cover
         """
         Start the server with the specified port and logger.
 
@@ -170,8 +133,7 @@ class NumpyServer(fl.FlightServerBase):
         descriptor = cls.descriptor()  # Create the Flight Descriptor.
 
         # Convert the data into an Arrow Table with the required structure.
-        d = {key: pa.array([{"data": value.flatten(), "shape": value.shape}]) for key, value in data.items()}
-        table = pa.table(d)
+        table = np_2_pa(data)
 
         # Send the data to the client using the descriptor.
         writer, _ = client.do_put(descriptor, table.schema)
@@ -189,24 +151,7 @@ class NumpyServer(fl.FlightServerBase):
         ticket = fl.Ticket(cls.__name__)  # Create a Ticket using the class name as the command.
         reader = client.do_get(ticket)  # Send the GET request to the client.
         result_table = reader.read_all()  # Read all results from the client.
-
-        # Convert the result table into a Python format
-
-        d = {}
-        for name in result_table.schema.names:
-            for item in result_table.column(name):
-                item = dict(item)
-                data = item["data"].values
-                data = np.array(data.to_pylist())
-
-                shape = item["shape"].values
-                shape = np.array(shape.to_pylist())
-
-                if shape.size == 0:
-                    d[name] = data[0]
-                else:
-                    d[name] = data.reshape(shape)
-        return d
+        return result_table
 
     @classmethod
     def compute(cls, client, data):
@@ -218,16 +163,6 @@ class NumpyServer(fl.FlightServerBase):
         :return: The results returned by the client after computation.
         """
         cls.write(client, data)  # Write data to the client.
-        return cls.get(client)  # Retrieve and return the results.
-
-    @staticmethod
-    def np_2_pa(data):
-        """
-        Create a PyArrow Table from a dictionary of data.
-
-        :param data: Dictionary containing data to be converted into a PyArrow table.
-        :return: PyArrow Table created from the dictionary.
-        """
-        return pa.Table.from_pydict(
-            {key: pa.array([{"data": value.flatten(), "shape": value.shape}]) for key, value in data.items()}
-        )
+        results = cls.get(client)  # Retrieve and return the results.
+        results = pa_2_np(results)
+        return results

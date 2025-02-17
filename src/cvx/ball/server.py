@@ -2,6 +2,7 @@ import numpy as np
 
 from .numpy_server import NumpyServer
 from .solver import min_circle_cvx
+from .utils.alter import np_2_pa
 
 
 class BallServer(NumpyServer):
@@ -15,4 +16,4 @@ class BallServer(NumpyServer):
         self.logger.info("Computing smallest enclosing ball...")
         radius, midpoint = min_circle_cvx(matrix, solver="CLARABEL")
 
-        return NumpyServer.np_2_pa({"radius": radius, "midpoint": midpoint, "points": matrix})
+        return np_2_pa({"radius": radius, "midpoint": midpoint, "points": matrix})

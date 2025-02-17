@@ -7,6 +7,7 @@ import pyarrow.flight as fl
 import pytest
 
 from cvx.ball.server import BallServer  # Adjust to your actual import path
+from cvx.ball.utils.alter import pa_2_np
 
 from .utils.reader import TableReader
 
@@ -63,7 +64,7 @@ def test_client(client, mock_table):
     # Simulate a 'do_put' request
     BallServer.write(client, {"input": mock_table})
     results = BallServer.get(client)
-    print(results)
+    results = pa_2_np(results)
 
     assert results["radius"] == pytest.approx(1.4142135605902473)
     assert results["midpoint"] == pytest.approx(np.array([2.0, 3.0]))
