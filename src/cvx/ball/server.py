@@ -15,7 +15,4 @@ class BallServer(NumpyServer):
         self.logger.info("Computing smallest enclosing ball...")
         radius, midpoint = min_circle_cvx(matrix, solver="CLARABEL")
 
-        # Create result table
-        return NumpyServer.results_table(
-            {"radius": NumpyServer.scalar(radius), "midpoint": NumpyServer.vector(midpoint)}
-        )
+        return NumpyServer.np_2_pa({"radius": radius, "midpoint": midpoint, "points": matrix})
