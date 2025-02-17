@@ -28,13 +28,6 @@ def server():
     time.sleep(1)
 
     yield server
-    # Connect to the server (flight client)
-    # flight_client = fl.connect("grpc+tcp://127.0.0.1:5007")
-
-    # yield flight_client  # Provide the flight client to the test
-
-    # After the test, ensure the server is properly cleaned up
-    # flight_client.close()  # Close the client connection
 
     # After the test, ensure the server is properly cleaned up
     server_thread.join(timeout=5)  # Ensure the server thread has time to shutdown
@@ -55,42 +48,21 @@ def client(server):
 @pytest.fixture
 def mock_table():
     """Fixture to create a mock Arrow Table for tests."""
-    matrix_data = [1, 2, 3, 4]  # Flattened 2x2 matrix
-    shape = [2, 2]  # Shape of the matrix
-    struct = {"data": matrix_data, "shape": shape}
-
-    # Create an Arrow Table with the matrix data and shape
-    table = pa.table({"input": [struct]})
-    return table
-
-
-@pytest.fixture
-def mock_table_faulty():
-    """Fixture to create a mock Arrow Table for tests."""
-    matrix_data = [1, 2, 3, 4, 5, 6]  # Flattened 3x2 matrix
-    shape = [2, 2]  # Shape of the matrix
-    struct = {"data": matrix_data, "shape": shape}
-
-    # Create an Arrow Table with the matrix data and shape
-    table = pa.table({"input": [struct]})
-    return table
+    return np.array([[1, 2], [3, 4]])
 
 
 def test_client(client, mock_table):
     # Simulate a 'do_put' request
-    command = "compute_ball"
-    descriptor = fl.FlightDescriptor.for_command(command)
+    BallServer.write(client, {"input": mock_table})
+    results = BallServer.get(client)
+    assert results["radius"] == pytest.approx(1.4142135605902473)
+    assert results["midpoint"] == pytest.approx(np.array([2.0, 3.0]))
 
-    writer, _ = client.do_put(descriptor, mock_table.schema)
-    writer.write_table(mock_table)
-    writer.close()
 
-    ticket = fl.Ticket(command)  # Create a Ticket with the command
-    reader = client.do_get(ticket)
-
-    result = reader.read_all()
-    assert result.column("radius")[0].as_py() == pytest.approx(1.4142135605902473)
-    assert result.column("midpoint")[0].as_py() == pytest.approx(np.array([2.0, 3.0]))
+def test_compute(client, mock_table):
+    results = BallServer.compute(client, {"input": mock_table})
+    assert results["radius"] == pytest.approx(1.4142135605902473)
+    assert results["midpoint"] == pytest.approx(np.array([2.0, 3.0]))
 
 
 def test_do_put_server(server, mock_table):
@@ -103,11 +75,14 @@ def test_do_put_server(server, mock_table):
 
 
 def test_do_get_server(server, mock_table):
-    command = "compute_ball"
-    descriptor = fl.FlightDescriptor.for_command(command)
+    command = BallServer.__name__
+    descriptor = BallServer.descriptor()
+
+    data = {"input": mock_table}
+    table = pa.table({key: pa.array([{"data": value.flatten(), "shape": value.shape}]) for key, value in data.items()})
 
     # fill the storage for the correct command
-    reader = TableReader(mock_table)
+    reader = TableReader(table)
     server.do_put(None, descriptor, reader, None)
 
     # from the ticket we can extract the correct storage
@@ -116,11 +91,14 @@ def test_do_get_server(server, mock_table):
 
 
 def test_wrong_command(server, mock_table):
-    command = "compute_ball"
-    descriptor = fl.FlightDescriptor.for_command(command)
+    command = BallServer.__name__
+    descriptor = BallServer.descriptor()
 
     # fill the storage for the correct command
-    reader = TableReader(mock_table)
+    data = {"input": mock_table}
+    table = pa.table({key: pa.array([{"data": value.flatten(), "shape": value.shape}]) for key, value in data.items()})
+
+    reader = TableReader(table)
     server.do_put(None, descriptor, reader, None)
 
     with pytest.raises(fl.FlightServerError):
@@ -130,12 +108,15 @@ def test_wrong_command(server, mock_table):
         server.do_get(None, ticket)
 
 
-def test_faulty_data(server, mock_table_faulty):
-    command = "compute_ball"
-    descriptor = fl.FlightDescriptor.for_command(command)
+def test_faulty_data(server, mock_table):
+    command = BallServer.__name__
+    descriptor = BallServer.descriptor()
 
     # fill the storage for the correct command
-    reader = TableReader(mock_table_faulty)
+    data = {"input": mock_table}
+    table = pa.table({key: pa.array([{"data": value.flatten(), "shape": [1, 1]}]) for key, value in data.items()})
+
+    reader = TableReader(table)
     server.do_put(None, descriptor, reader, None)
 
     with pytest.raises(fl.FlightServerError):

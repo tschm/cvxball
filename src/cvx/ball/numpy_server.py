@@ -2,6 +2,7 @@ import threading
 
 import loguru
 import numpy as np
+import pyarrow as pa
 import pyarrow.flight as fl
 
 
@@ -93,3 +94,43 @@ class NumpyServer(fl.FlightServerBase):
         server = cls("127.0.0.1", port=port, logger=logger, **kwargs)  # pragma: no cover
         server.logger.info(f"Starting {cls} Flight server on port {port}...")  # pragma: no cover
         server.serve()  # pragma: no cover
+
+    @classmethod
+    def descriptor(cls):
+        command = cls.__name__
+        descriptor = fl.FlightDescriptor.for_command(command)
+        return descriptor
+
+    @classmethod
+    def write(cls, client, data):
+        descriptor = cls.descriptor()
+        d = {key: pa.array([{"data": value.flatten(), "shape": value.shape}]) for key, value in data.items()}
+        table = pa.table(d)
+        writer, _ = client.do_put(descriptor, table.schema)
+        writer.write_table(table)
+        writer.close()
+
+    @classmethod
+    def get(cls, client):
+        ticket = fl.Ticket(cls.__name__)  # Create a Ticket with the command
+        reader = client.do_get(ticket)
+        result_table = reader.read_all()
+        results = {name: result_table.column(name)[0].as_py() for name in result_table.schema.names}
+        return results
+
+    @classmethod
+    def compute(cls, client, data):
+        cls.write(client, data)
+        return cls.get(client)
+
+    @staticmethod
+    def scalar(x):
+        return pa.array([x], type=pa.float64())
+
+    @staticmethod
+    def vector(x):
+        return pa.array([x], type=pa.list_(pa.float64()))
+
+    @staticmethod
+    def results_table(d):
+        return pa.Table.from_pydict(d)
