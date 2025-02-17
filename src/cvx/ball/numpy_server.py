@@ -3,7 +3,7 @@ import threading  # Module for creating and managing threads; used for thread sa
 import loguru  # Logging library that simplifies logging setup and usage.
 import pyarrow.flight as fl  # PyArrow's Flight module to handle gRPC-based data transfer with Arrow.
 
-from .utils.alter import np_2_pa, pa_2_np
+from .utils.alter import pa_2_np
 
 
 class NumpyServer(fl.FlightServerBase):
@@ -121,48 +121,3 @@ class NumpyServer(fl.FlightServerBase):
         command = cls.__name__  # Use the class name as the command.
         descriptor = fl.FlightDescriptor.for_command(command)  # Create a descriptor for the command.
         return descriptor
-
-    @classmethod
-    def write(cls, client, data):
-        """
-        Write data to the client by creating a Flight Descriptor and sending the data.
-
-        :param client: The Flight client.
-        :param data: The data to send (in a dictionary format).
-        """
-        descriptor = cls.descriptor()  # Create the Flight Descriptor.
-
-        # Convert the data into an Arrow Table with the required structure.
-        table = np_2_pa(data)
-
-        # Send the data to the client using the descriptor.
-        writer, _ = client.do_put(descriptor, table.schema)
-        writer.write_table(table)  # Write the Arrow Table to the client.
-        writer.close()  # Close the writer.
-
-    @classmethod
-    def get(cls, client):
-        """
-        Get the data from the client by issuing a GET request using the class descriptor.
-
-        :param client: The Flight client.
-        :return: A dictionary of results containing the requested data.
-        """
-        ticket = fl.Ticket(cls.__name__)  # Create a Ticket using the class name as the command.
-        reader = client.do_get(ticket)  # Send the GET request to the client.
-        result_table = reader.read_all()  # Read all results from the client.
-        return result_table
-
-    @classmethod
-    def compute(cls, client, data):
-        """
-        Perform both write and get operations: send data to the client and retrieve results.
-
-        :param client: The Flight client.
-        :param data: The data to send to the client.
-        :return: The results returned by the client after computation.
-        """
-        cls.write(client, data)  # Write data to the client.
-        results = cls.get(client)  # Retrieve and return the results.
-        results = pa_2_np(results)
-        return results

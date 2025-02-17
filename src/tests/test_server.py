@@ -6,6 +6,7 @@ import pyarrow as pa
 import pyarrow.flight as fl
 import pytest
 
+from cvx.ball.numpy_client import NumpyClient
 from cvx.ball.server import BallServer  # Adjust to your actual import path
 from cvx.ball.utils.alter import pa_2_np
 
@@ -40,8 +41,8 @@ def client(server):
     # Connect to the server (flight client)
     flight_client = fl.connect("grpc+tcp://127.0.0.1:5007")
 
-    yield flight_client  # Provide the flight client to the test
-
+    yield NumpyClient(flight_client)
+    # Provide the flight client to the test
     # After the test, ensure the server is properly cleaned up
     flight_client.close()  # Close the client connection
 
@@ -62,8 +63,8 @@ def mock_reader(mock_table):
 
 def test_client(client, mock_table):
     # Simulate a 'do_put' request
-    BallServer.write(client, {"input": mock_table})
-    results = BallServer.get(client)
+    client.write(command="test", data={"input": mock_table})
+    results = client.get(command="test")
     results = pa_2_np(results)
 
     assert results["radius"] == pytest.approx(1.4142135605902473)
@@ -72,7 +73,7 @@ def test_client(client, mock_table):
 
 
 def test_compute(client, mock_table):
-    results = BallServer.compute(client, {"input": mock_table})
+    results = client.compute(command="test", data={"input": mock_table})
     assert results["radius"] == pytest.approx(1.4142135605902473)
     assert results["midpoint"] == pytest.approx(np.array([2.0, 3.0]))
     assert results["points"] == pytest.approx(mock_table)
