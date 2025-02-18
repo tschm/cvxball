@@ -1,12 +1,14 @@
 import numpy as np
+import pyarrow as pa
+import pyarrow.flight as fl
+from np.server import Server
+from np.server.utils.alter import np_2_pa
 
-from cvx.ball.numpy_server import NumpyServer
 from cvx.ball.solver import min_circle_cvx
-from cvx.ball.utils.alter import np_2_pa
 
 
-class BallServer(NumpyServer):
-    def f(self, matrices: dict[str, np.ndarray]):
+class BallServer(Server):
+    def f(self, matrices: dict[str, np.ndarray]) -> pa.Table:
         self.logger.info(f"Matrices: {matrices.keys()}")
         matrix = matrices["input"]
 
@@ -17,6 +19,12 @@ class BallServer(NumpyServer):
         radius, midpoint = min_circle_cvx(matrix, solver="CLARABEL")
 
         return np_2_pa({"radius": radius, "midpoint": midpoint, "points": matrix})
+
+    @classmethod
+    def descriptor(cls):
+        command = cls.__name__  # Use the class name as the command.
+        descriptor = fl.FlightDescriptor.for_command(command)  # Create a descriptor for the command.
+        return descriptor
 
 
 # entry point for Docker
