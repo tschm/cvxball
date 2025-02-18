@@ -9,25 +9,25 @@ jobs:
       contents: write
     runs-on: ubuntu-latest
     outputs:
-      new_tag: ${{ steps.tag_version.outputs.new_tag }}     # Define job output
+      new_tag: ${{ steps.tag_version.outputs.new_tag }}  # This will output the tag for other jobs
     steps:
       - name: Generate Tag
         id: tag_version
         uses: cvxgrp/.github/actions/tag@main_2
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Echo Generated Tag
         shell: bash
         run: |
           echo "Generated Tag: ${{ steps.tag_version.outputs.new_tag }}"
-  
+
   docker:
     needs: tag
     permissions:
       contents: read
       packages: write
-      
+
     runs-on: ubuntu-latest
     steps:
       - name: Install Podman
