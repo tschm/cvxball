@@ -12,6 +12,25 @@ jobs:
 
     steps:
       - name: Generate Tag
+        id: tag_version # Add an ID so you can reference this step
         uses: cvxgrp/.github/actions/tag@v2.2.3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+
+      - name: Output the generated tag
+        run: |
+            echo "Generated Tag: ${{ steps.tag_version.outputs.new_tag }}"  # Reference the new_tag output from the tag_version step
+            echo "Github actor: ${{ github.actor }}"
+
+      #- name: Login to GitHub Container Registry
+      #  run: |
+      #    podman login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
+
+      #- name: Output the generated tag
+      #  run: |
+      #      echo "Generated Tag: ${{ steps.tag_version.outputs.new_tag }}"  # Reference the new_tag output from the tag_version step
