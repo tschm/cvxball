@@ -6,9 +6,9 @@ import pyarrow as pa
 import pyarrow.flight as fl
 import pytest
 from np.client import Client
+from np.server.utils.alter import pa_2_np
 
 from cvx.ball.server import BallServer  # Adjust to your actual import path
-from cvx.ball.utils.alter import pa_2_np
 
 from .utils.reader import TableReader
 
