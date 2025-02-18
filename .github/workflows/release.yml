@@ -7,21 +7,20 @@ jobs:
   tag:
     permissions:
       contents: write
-
     runs-on: ubuntu-latest
-
+    outputs:
+      new_tag: ${{ steps.tag_version.outputs.new_tag }}     # Define job output
     steps:
       - name: Generate Tag
-        id: tag_version # Add an ID so you can reference this step
+        id: tag_version
         uses: cvxgrp/.github/actions/tag@main_2
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       
-      # Set the new_tag output from Generate Tag into GITHUB_ENV
-      - name: Set new_tag as environment variable
+      - name: Echo Generated Tag
+        shell: bash
         run: |
-          echo "Generated Tag: $NEW_TAG"
-          echo "NEW_TAG=$NEW_TAG" >> $GITHUB_ENV
+          echo "Generated Tag: ${{ steps.tag_version.outputs.new_tag }}"
   
   docker:
     needs: tag
