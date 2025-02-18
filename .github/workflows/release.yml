@@ -22,8 +22,6 @@ jobs:
         run: |
           echo "Generated Tag: ${{ env.NEW_TAG }}"
           echo "Generated Tag: ${{ env.new_tag }}"
-          #echo "Generated Tag: ${{ outputs.NEW_TAG }}"
-          #echo "Generated Tag: ${{ outputs.new_tag }}"
           echo $GITHUB_ENV
 
   docker:
