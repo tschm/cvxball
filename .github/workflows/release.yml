@@ -42,15 +42,21 @@ jobs:
 
     runs-on: ubuntu-latest
     steps:
+      # -----------------------------------------------------------------------------
+      # Step 1: Checkout the repository
+      # -----------------------------------------------------------------------------
+      - name: Checkout [${{ github.repository }}]
+        uses: actions/checkout@v4
+
+      - name: Output the generated tag
+        run: |
+          echo "Github actor: ${{ github.actor }}"
+          echo "GENERATED TAG: ${{ needs.tag.outputs.new_tag }}"
+
       - name: Install Podman
         run: |
           sudo apt-get update
           sudo apt-get install -y podman
-
-      - name: Output the generated tag
-        run: |
-            echo "Github actor: ${{ github.actor }}"
-            echo "GENERATED TAG: ${{ needs.tag.outputs.new_tag }}"
 
       - name: Login to GitHub Container Registry
         run: |
