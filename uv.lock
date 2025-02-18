@@ -173,10 +173,8 @@ source = { editable = "." }
 dependencies = [
     { name = "clarabel" },
     { name = "cvxpy-base" },
-    { name = "loguru" },
     { name = "numpy" },
     { name = "numpy-flight" },
-    { name = "pyarrow" },
 ]
 
 [package.dev-dependencies]
@@ -192,12 +190,10 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "clarabel", specifier = ">=0.9.0" },
+    { name = "clarabel", specifier = ">=0.10.0" },
     { name = "cvxpy-base", specifier = ">=1.6.0" },
-    { name = "loguru", specifier = ">=0.7.3" },
-    { name = "numpy", specifier = ">=2.2.1" },
+    { name = "numpy", specifier = ">=2" },
     { name = "numpy-flight", specifier = ">=0.0.5" },
-    { name = "pyarrow", specifier = ">=19.0.0" },
 ]
 
 [package.metadata.requires-dev]
