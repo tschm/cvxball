@@ -27,11 +27,21 @@ jobs:
             echo "Generated Tag: ${{ steps.tag_version.outputs.new_tag }}"  # Reference the new_tag output from the tag_version step
             echo "Github actor: ${{ github.actor }}"
             echo "GENERATED TAG: ${{ env.NEW_TAG }}"
-            echo "GENERATED TAG: $NEW_TAG"
-      #- name: Login to GitHub Container Registry
-      #  run: |
-      #    podman login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
 
-      #- name: Output the generated tag
-      #  run: |
-      #      echo "Generated Tag: ${{ steps.tag_version.outputs.new_tag }}"  # Reference the new_tag output from the tag_version step
+
+      - name: Login to GitHub Container Registry
+        run: |
+          podman login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build container image
+        run: |
+          ls -all
+          pwd
+          podman build \
+            --tag ghcr.io/${{ github.repository }}:${{ env.NEW_TAG }} \
+            -f docker/Dockerfile \
+            .
+
+      - name: Push container image
+        run: |
+          podman push ghcr.io/${{ github.repository }}:${{ env.NEW_TAG }}
