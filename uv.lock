@@ -175,8 +175,7 @@ dependencies = [
     { name = "cvxpy-base" },
     { name = "loguru" },
     { name = "numpy" },
-    { name = "numpy-flight-client" },
-    { name = "numpy-flight-server" },
+    { name = "numpy-flight" },
     { name = "pyarrow" },
 ]
 
@@ -197,8 +196,7 @@ requires-dist = [
     { name = "cvxpy-base", specifier = ">=1.6.0" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "numpy", specifier = ">=2.2.1" },
-    { name = "numpy-flight-client", specifier = ">=0.0.3" },
-    { name = "numpy-flight-server", specifier = ">=0.0.2" },
+    { name = "numpy-flight", specifier = ">=0.0.5" },
     { name = "pyarrow", specifier = ">=19.0.0" },
 ]
 
@@ -600,30 +598,17 @@ wheels = [
 ]
 
 [[package]]
-name = "numpy-flight-client"
-version = "0.0.3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "numpy" },
-    { name = "pyarrow" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/48/67/ab0f8732a68ce27715c16fd183406fc322b15f2d12cac8d0387899d5abf2/numpy_flight_client-0.0.3.tar.gz", hash = "sha256:9a0c03d44beb23ec6bb0684b8836f4e2ca7c86440674d97907e0274f172be811", size = 6552 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/29/0e/a918e2a0e6517997354986450f99aa8d37eb7966d26dfd3549e4be0fd486/numpy_flight_client-0.0.3-py3-none-any.whl", hash = "sha256:32aa414126674a509858de67ccf8e540728782091ac672a80831a6f79979120a", size = 6511 },
-]
-
-[[package]]
-name = "numpy-flight-server"
-version = "0.0.2"
+name = "numpy-flight"
+version = "0.0.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "loguru" },
     { name = "numpy" },
     { name = "pyarrow" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c4/6a/1fb48a8016d92db183c5a52ce4885801dfd4492d93f4c14380704efff295/numpy_flight_server-0.0.2.tar.gz", hash = "sha256:5c6ef3af88834af6dfef3a0514152370594a27f6e820af5aacc5104ee7097bf1", size = 6568 }
+sdist = { url = "https://files.pythonhosted.org/packages/61/2e/688df179fc00b83e7bd8fbc80e53b8e2fbe47350f2d3885f77cdfff01944/numpy_flight-0.0.5.tar.gz", hash = "sha256:3bc0adec160e78cae8b5c9144498c9daeb782d197234c303b16721e94491110b", size = 8092 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/23/88/15c2806effa3b8ad530d63e68cd90f07858cb4d10d39f06874384f4bc435/numpy_flight_server-0.0.2-py3-none-any.whl", hash = "sha256:62660c2b27a06472c0cdde22ca8ee4a897581d6affa5845aad210db4847b6019", size = 6226 },
+    { url = "https://files.pythonhosted.org/packages/34/57/8c6c570a134170d71b6ac61d641d1a7db53e21ee7efa6c8250ae565de8fb/numpy_flight-0.0.5-py3-none-any.whl", hash = "sha256:a94429f261ca275cd9293dc5c9b1025bf040cb430d315a0a03c93b07e6ed75ac", size = 8460 },
 ]
 
 [[package]]

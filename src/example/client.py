@@ -1,7 +1,7 @@
 import numpy as np
 import pyarrow.flight as fl
 from loguru import logger
-from np.client import Client
+from np.flight import Client
 
 
 def main():
