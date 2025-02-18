@@ -43,6 +43,7 @@ jobs:
             echo "Github actor: ${{ github.actor }}"
             echo "GENERATED TAG: ${{ env.NEW_TAG }}"
             echo "GENERATED TAG: $ENV_TAG"
+            echo "GENERATED TAG: ${{ needs.tag.outputs.new_tag }}"
 
       - name: Login to GitHub Container Registry
         run: |
