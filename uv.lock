@@ -175,6 +175,7 @@ dependencies = [
     { name = "cvxpy-base" },
     { name = "loguru" },
     { name = "numpy" },
+    { name = "numpy-client" },
     { name = "pyarrow" },
 ]
 
@@ -195,6 +196,7 @@ requires-dist = [
     { name = "cvxpy-base", specifier = ">=1.6.0" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "numpy", specifier = ">=2.2.1" },
+    { name = "numpy-client", specifier = ">=0.0.2" },
     { name = "pyarrow", specifier = ">=19.0.0" },
 ]
 
@@ -593,6 +595,19 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/29/e8/5da32ffcaa7a72f7ecd82f90c062140a061eb823cb88e90279424e515cf4/numpy-2.2.3-pp310-pypy310_pp73-macosx_14_0_x86_64.whl", hash = "sha256:ed2cf9ed4e8ebc3b754d398cba12f24359f018b416c380f577bbae112ca52fc9", size = 6809418 },
     { url = "https://files.pythonhosted.org/packages/a8/a9/68aa7076c7656a7308a0f73d0a2ced8c03f282c9fd98fa7ce21c12634087/numpy-2.2.3-pp310-pypy310_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:39261798d208c3095ae4f7bc8eaeb3481ea8c6e03dc48028057d3cbdbdb8937e", size = 16215461 },
     { url = "https://files.pythonhosted.org/packages/17/7f/d322a4125405920401450118dbdc52e0384026bd669939484670ce8b2ab9/numpy-2.2.3-pp310-pypy310_pp73-win_amd64.whl", hash = "sha256:783145835458e60fa97afac25d511d00a1eca94d4a8f3ace9fe2043003c678e4", size = 12839607 },
+]
+
+[[package]]
+name = "numpy-client"
+version = "0.0.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "pyarrow" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/66/6e/2b9619b0c80c6d0b9ea834f9bb3dbb93cee5e08ef52b23b81e28c40d13f7/numpy_client-0.0.2.tar.gz", hash = "sha256:4f9261a0e5b41105c0896eaabaf8ea585c185ae059d832001142fdb1fa0cf875", size = 6547 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a4/7f/5c6490cfb26200cc1fa2059de85e2ae4fec464219d8e6f7a2b5faefcb034/numpy_client-0.0.2-py3-none-any.whl", hash = "sha256:2f13d5913d133df18f7c9d7597284747cc0b96f32df924029683a514461c2356", size = 6441 },
 ]
 
 [[package]]

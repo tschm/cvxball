@@ -1,13 +1,12 @@
 import numpy as np
 import pyarrow.flight as fl
 from loguru import logger
-
-from cvx.ball.numpy_client import NumpyClient
+from np.client import Client
 
 
 def main():
     # Connect to the server
-    client = NumpyClient(fl.connect("grpc+tcp://127.0.0.1:8815"))
+    client = Client(fl.connect("grpc+tcp://127.0.0.1:8815"))
 
     # Example data
     # The server is expecting a dictionary of numpy arrays
@@ -17,6 +16,7 @@ def main():
     results = client.compute(command="test", data=data)
 
     logger.info(f"Results: {results.keys()}")
+    client.close()
 
 
 if __name__ == "__main__":

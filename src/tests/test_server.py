@@ -5,8 +5,8 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.flight as fl
 import pytest
+from np.client import Client
 
-from cvx.ball.numpy_client import NumpyClient
 from cvx.ball.server import BallServer  # Adjust to your actual import path
 from cvx.ball.utils.alter import pa_2_np
 
@@ -41,7 +41,7 @@ def client(server):
     # Connect to the server (flight client)
     flight_client = fl.connect("grpc+tcp://127.0.0.1:5007")
 
-    yield NumpyClient(flight_client)
+    yield Client(flight_client)
     # Provide the flight client to the test
     # After the test, ensure the server is properly cleaned up
     flight_client.close()  # Close the client connection
