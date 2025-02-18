@@ -20,7 +20,9 @@ jobs:
       - name: Echo Generated Tag
         shell: bash
         run: |
-          echo "Generated Tag: ${{ steps.tag_version.outputs.new_tag }}"
+          echo "Generated Tag: ${{ env.NEW_TAG }}"
+          echo "Generated Tag: ${{ env.new_tag }}"
+          echo $GITHUB_ENV
 
   docker:
     needs: tag
