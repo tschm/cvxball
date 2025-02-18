@@ -39,11 +39,10 @@ jobs:
           ls -all
           pwd
           podman build \
-            --tag ghcr.io/tschm/cvxball:${{ env.NEW_TAG }} \
+            --tag ghcr.io/${{ github.repository }}:${{ env.NEW_TAG }} \
             -f docker/Dockerfile \
             .
 
       - name: Push container image
         run: |
-          # podman push ghcr.io/${{ github.repository }}:${{ env.NEW_TAG }}
-          podman push ghcr.io/tschm/cvxball:${{ env.NEW_TAG }}
+          podman push ghcr.io/${{ github.repository }}:${{ env.NEW_TAG }}
