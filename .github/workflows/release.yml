@@ -20,8 +20,8 @@ jobs:
       # Set the new_tag output from Generate Tag into GITHUB_ENV
       - name: Set new_tag as environment variable
         run: |
-          #echo "NEW_TAG=${{ steps.tag_version.outputs.new_tag }}" >> $GITHUB_ENV
           echo "Generated Tag: $NEW_TAG"
+          echo "NEW_TAG=$NEW_TAG" >> $GITHUB_ENV
   
   docker:
     needs: tag
