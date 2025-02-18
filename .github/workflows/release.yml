@@ -13,7 +13,7 @@ jobs:
     steps:
       - name: Generate Tag
         id: tag_version # Add an ID so you can reference this step
-        uses: cvxgrp/.github/actions/tag@v2.2.3
+        uses: cvxgrp/.github/actions/tag@main_2
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
