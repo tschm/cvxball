@@ -18,11 +18,15 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Echo Generated Tag
-        shell: bash
         run: |
           echo "Generated Tag: ${{ env.NEW_TAG }}"
           echo "Generated Tag: ${{ env.new_tag }}"
           echo $GITHUB_ENV
+
+      - name: Debug Output Tag
+        run: |
+            echo "DEBUG: ${{ steps.tag_version.outputs.new_tag }}"
+
 
   docker:
     needs: tag
