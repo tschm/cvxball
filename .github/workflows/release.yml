@@ -7,7 +7,6 @@ jobs:
   tag:
     permissions:
       contents: write
-      packages: write # Write permissions to GitHub packages
 
     runs-on: ubuntu-latest
 
@@ -17,7 +16,13 @@ jobs:
         uses: cvxgrp/.github/actions/tag@main_2
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-
+  docker:
+    permissions:
+      contents: read
+      packages: write
+      
+    runs-on: ubuntu-latest
+    steps:
       - name: Install Podman
         run: |
           sudo apt-get update
