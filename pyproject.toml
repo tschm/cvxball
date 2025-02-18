@@ -47,7 +47,7 @@ build-backend = "hatchling.build"
 packages = ["src/cvx"]
 
 [tool.deptry.per_rule_ignores]
-DEP002 = ["clarabel"]
+DEP002 = ["clarabel","numpy-client"]
 DEP003 = ["cvx"]
 
 [tool.bandit]
