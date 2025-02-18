@@ -18,11 +18,21 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Debug Output Tag
+        id: tag_version2
         run: |
             echo "DEBUG1: ${{ steps.tag_version.outputs.new_tag }}"
             echo "DEBUG2: ${{ steps.tag_version.outputs.NEW_TAG }}"
             echo "Generated Tag1: ${{ env.NEW_TAG }}"
             echo "Generated Tag2: ${{ env.new_tag }}"
+
+      - name: Set an output
+        id: set_tag
+        run: |
+            echo "ttt=${{ env.NEW_TAG }}" >> $GITHUB_OUTPUT
+
+      - name: Use the output in another step
+        run: |
+            echo "The output value is ${{ steps.set_tag.outputs.ttt }}"
 
   docker:
     needs: tag
