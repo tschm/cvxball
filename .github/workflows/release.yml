@@ -9,7 +9,7 @@ jobs:
       contents: write
     runs-on: ubuntu-latest
     outputs:
-      new_tag: ${{ steps.tag_version.outputs.NEW_TAG }}  # This will output the tag for other jobs
+      new_tag: ${{ steps.set_tag.outputs.ttt }}  # This will output the tag for other jobs
     steps:
       - name: Generate Tag
         id: tag_version
@@ -49,10 +49,7 @@ jobs:
 
       - name: Output the generated tag
         run: |
-            echo "Generated Tag: ${{ steps.tag_version.outputs.new_tag }}"  # Reference the new_tag output from the tag_version step
             echo "Github actor: ${{ github.actor }}"
-            echo "GENERATED TAG: ${{ env.NEW_TAG }}"
-            echo "GENERATED TAG: $ENV_TAG"
             echo "GENERATED TAG: ${{ needs.tag.outputs.new_tag }}"
 
       - name: Login to GitHub Container Registry
