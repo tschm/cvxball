@@ -16,6 +16,12 @@ jobs:
         uses: cvxgrp/.github/actions/tag@main_2
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+      
+      # Set the new_tag output from Generate Tag into GITHUB_ENV
+      - name: Set new_tag as environment variable
+        run: |
+          echo "NEW_TAG=${{ steps.tag_version.outputs.new_tag }}" >> $GITHUB_ENV
+          echo "Generated Tag: $NEW_TAG"
   docker:
     needs: tag
     permissions:
