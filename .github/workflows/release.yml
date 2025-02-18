@@ -20,8 +20,9 @@ jobs:
       # Set the new_tag output from Generate Tag into GITHUB_ENV
       - name: Set new_tag as environment variable
         run: |
-          echo "NEW_TAG=${{ steps.tag_version.outputs.new_tag }}" >> $GITHUB_ENV
+          #echo "NEW_TAG=${{ steps.tag_version.outputs.new_tag }}" >> $GITHUB_ENV
           echo "Generated Tag: $NEW_TAG"
+  
   docker:
     needs: tag
     permissions:
@@ -40,7 +41,7 @@ jobs:
             echo "Generated Tag: ${{ steps.tag_version.outputs.new_tag }}"  # Reference the new_tag output from the tag_version step
             echo "Github actor: ${{ github.actor }}"
             echo "GENERATED TAG: ${{ env.NEW_TAG }}"
-
+            echo "GENERATED TAG: $ENV_TAG"
 
       - name: Login to GitHub Container Registry
         run: |
