@@ -13,7 +13,7 @@ jobs:
     steps:
       - name: Generate Tag
         id: tag_version
-        uses: cvxgrp/.github/actions/tag@docker
+        uses: cvxgrp/.github/actions/tag@168-docker
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -36,11 +36,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build and Push Docker Image
-        uses: cvxgrp/.github/actions/docker@docker
+        uses: cvxgrp/.github/actions/docker@168-docker
         with:
           repository: ${{ github.repository }}
           tag: ${{ needs.tag.outputs.tag }}
           dockerfile-path: 'docker/Dockerfile'
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
       #- name: Output the generated tag
       #  run: |
