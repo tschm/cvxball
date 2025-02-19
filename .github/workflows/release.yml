@@ -13,23 +13,13 @@ jobs:
     steps:
       - name: Generate Tag
         id: tag_version
-        uses: cvxgrp/.github/actions/tag@main_2
+        uses: cvxgrp/.github/actions/tag@docker
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Debug Output Tag
-        id: tag_version2
         run: |
-            echo "XXX: ${{ steps.tag_version.outputs.tag }}"
-
-      #- name: Set an output
-      #  id: set_tag
-      #  run: |
-      #      echo "ttt=${{ env.NEW_TAG }}" >> $GITHUB_OUTPUT
-
-      #- name: Use the output in another step
-      #  run: |
-      #      echo "The output value is ${{ steps.set_tag.outputs.ttt }}"
+            echo "Tag: ${{ steps.tag_version.outputs.tag }}"
 
   docker:
     needs: tag
@@ -45,29 +35,36 @@ jobs:
       - name: Checkout [${{ github.repository }}]
         uses: actions/checkout@v4
 
-      - name: Output the generated tag
-        run: |
-          echo "Github actor: ${{ github.actor }}"
-          echo "GENERATED TAG: ${{ needs.tag.outputs.tag }}"
+      - name: Build and Push Docker Image
+        uses: cvxgrp/.github/actions/docker@docker
+        with:
+          repository: ${{ github.repository }}
+          tag: ${{ needs.tag.outputs.tag }}
+          dockerfile-path: 'docker/Dockerfile'
 
-      - name: Install Podman
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y podman
+      #- name: Output the generated tag
+      #  run: |
+      #    echo "Github actor: ${{ github.actor }}"
+      #    echo "GENERATED TAG: ${{ needs.tag.outputs.tag }}"
 
-      - name: Login to GitHub Container Registry
-        run: |
-          podman login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
+      #- name: Install Podman
+      #  run: |
+      #    sudo apt-get update
+      #    sudo apt-get install -y podman
 
-      - name: Build container image
-        run: |
-          ls -all
-          pwd
-          podman build \
-            --tag ghcr.io/${{ github.repository }}:${{ needs.tag.outputs.tag }} \
-            -f docker/Dockerfile \
-            .
+      #- name: Login to GitHub Container Registry
+      #  run: |
+      #    podman login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Push container image
-        run: |
-          podman push ghcr.io/${{ github.repository }}:${{ needs.tag.outputs.tag }}
+      #- name: Build container image
+      #  run: |
+      #    ls -all
+      #    pwd
+      #    podman build \
+      #      --tag ghcr.io/${{ github.repository }}:${{ needs.tag.outputs.tag }} \
+      #      -f docker/Dockerfile \
+      #      .
+
+      #- name: Push container image
+      #  run: |
+      #    podman push ghcr.io/${{ github.repository }}:${{ needs.tag.outputs.tag }}
