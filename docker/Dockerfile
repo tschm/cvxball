@@ -30,12 +30,5 @@ EXPOSE 8815
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
-
-# Copy application code
-#COPY . .
-
-# Expose the Flight server port
-EXPOSE 8815
-
 # Run the server
 CMD [".venv/bin/python", "cvx/ball/server.py"]
