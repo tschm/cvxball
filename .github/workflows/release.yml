@@ -20,6 +20,8 @@ jobs:
       - name: Debug Output Tag
         id: tag_version2
         run: |
+            echo "XXX: ${{ steps.tag_version.outputs.tag }}"
+
             echo "DEBUG1: ${{ steps.tag_version.outputs.new_tag }}"
             echo "DEBUG2: ${{ steps.tag_version.outputs.NEW_TAG }}"
             echo "Generated Tag1: ${{ env.NEW_TAG }}"
