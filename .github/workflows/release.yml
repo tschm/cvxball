@@ -7,42 +7,38 @@ jobs:
   tag:
     permissions:
       contents: write
-      packages: write # Write permissions to GitHub packages
-
     runs-on: ubuntu-latest
-
+    outputs:
+      tag: ${{ steps.tag_version.outputs.tag }}  # This will output the tag for other jobs
     steps:
       - name: Generate Tag
-        id: tag_version # Add an ID so you can reference this step
-        uses: cvxgrp/.github/actions/tag@main_2
+        id: tag_version
+        uses: cvxgrp/.github/actions/tag@v2.2.4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install Podman
+      - name: Debug Output Tag
         run: |
-          sudo apt-get update
-          sudo apt-get install -y podman
+            echo "Tag: ${{ steps.tag_version.outputs.tag }}"
 
-      - name: Output the generated tag
-        run: |
-            echo "Generated Tag: ${{ steps.tag_version.outputs.new_tag }}"  # Reference the new_tag output from the tag_version step
-            echo "Github actor: ${{ github.actor }}"
-            echo "GENERATED TAG: ${{ env.NEW_TAG }}"
+  docker:
+    needs: tag
+    permissions:
+      contents: read
+      packages: write
 
+    runs-on: ubuntu-latest
+    steps:
+      # -----------------------------------------------------------------------------
+      # Step 1: Checkout the repository
+      # -----------------------------------------------------------------------------
+      - name: Checkout [${{ github.repository }}]
+        uses: actions/checkout@v4
 
-      - name: Login to GitHub Container Registry
-        run: |
-          podman login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build container image
-        run: |
-          ls -all
-          pwd
-          podman build \
-            --tag ghcr.io/${{ github.repository }}:${{ env.NEW_TAG }} \
-            -f docker/Dockerfile \
-            .
-
-      - name: Push container image
-        run: |
-          podman push ghcr.io/${{ github.repository }}:${{ env.NEW_TAG }}
+      - name: Build and Push Docker Image
+        uses: cvxgrp/.github/actions/docker@v2.2.4
+        with:
+          repository: ${{ github.repository }}
+          tag: ${{ needs.tag.outputs.tag }}
+          dockerfile-path: 'docker/Dockerfile'
+          github_token: ${{ secrets.GITHUB_TOKEN }}
