@@ -9,7 +9,7 @@ jobs:
       contents: write
     runs-on: ubuntu-latest
     outputs:
-      new_tag: ${{ steps.set_tag.outputs.ttt }}  # This will output the tag for other jobs
+      tag: ${{ steps.tag_version.outputs.tag }}  # This will output the tag for other jobs
     steps:
       - name: Generate Tag
         id: tag_version
@@ -22,19 +22,14 @@ jobs:
         run: |
             echo "XXX: ${{ steps.tag_version.outputs.tag }}"
 
-            echo "DEBUG1: ${{ steps.tag_version.outputs.new_tag }}"
-            echo "DEBUG2: ${{ steps.tag_version.outputs.NEW_TAG }}"
-            echo "Generated Tag1: ${{ env.NEW_TAG }}"
-            echo "Generated Tag2: ${{ env.new_tag }}"
+      #- name: Set an output
+      #  id: set_tag
+      #  run: |
+      #      echo "ttt=${{ env.NEW_TAG }}" >> $GITHUB_OUTPUT
 
-      - name: Set an output
-        id: set_tag
-        run: |
-            echo "ttt=${{ env.NEW_TAG }}" >> $GITHUB_OUTPUT
-
-      - name: Use the output in another step
-        run: |
-            echo "The output value is ${{ steps.set_tag.outputs.ttt }}"
+      #- name: Use the output in another step
+      #  run: |
+      #      echo "The output value is ${{ steps.set_tag.outputs.ttt }}"
 
   docker:
     needs: tag
@@ -53,7 +48,7 @@ jobs:
       - name: Output the generated tag
         run: |
           echo "Github actor: ${{ github.actor }}"
-          echo "GENERATED TAG: ${{ needs.tag.outputs.new_tag }}"
+          echo "GENERATED TAG: ${{ needs.tag.outputs.tag }}"
 
       - name: Install Podman
         run: |
@@ -69,10 +64,10 @@ jobs:
           ls -all
           pwd
           podman build \
-            --tag ghcr.io/${{ github.repository }}:${{ needs.tag.outputs.new_tag }} \
+            --tag ghcr.io/${{ github.repository }}:${{ needs.tag.outputs.tag }} \
             -f docker/Dockerfile \
             .
 
       - name: Push container image
         run: |
-          podman push ghcr.io/${{ github.repository }}:${{ needs.tag.outputs.new_tag }}
+          podman push ghcr.io/${{ github.repository }}:${{ needs.tag.outputs.tag }}
