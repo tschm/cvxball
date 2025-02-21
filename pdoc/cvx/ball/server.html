@@ -39,6 +39,9 @@
                 </ul>
 
             </li>
+            <li>
+                    <a class="function" href="#serve">serve</a>
+            </li>
     </ul>
 
 
@@ -85,9 +88,16 @@
 </span><span id="L-23"><a href="#L-23"><span class="linenos">23</span></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;radius&quot;</span><span class="p">:</span> <span class="n">radius</span><span class="p">,</span> <span class="s2">&quot;midpoint&quot;</span><span class="p">:</span> <span class="n">midpoint</span><span class="p">,</span> <span class="s2">&quot;points&quot;</span><span class="p">:</span> <span class="n">matrix</span><span class="p">}</span>
 </span><span id="L-24"><a href="#L-24"><span class="linenos">24</span></a>
 </span><span id="L-25"><a href="#L-25"><span class="linenos">25</span></a>
-</span><span id="L-26"><a href="#L-26"><span class="linenos">26</span></a><span class="c1"># entry point for Docker</span>
-</span><span id="L-27"><a href="#L-27"><span class="linenos">27</span></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>  <span class="c1"># pragma: no cover</span>
-</span><span id="L-28"><a href="#L-28"><span class="linenos">28</span></a>    <span class="n">BallServer</span><span class="o">.</span><span class="n">start</span><span class="p">(</span><span class="n">host</span><span class="o">=</span><span class="s2">&quot;0.0.0.0&quot;</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="mi">8080</span><span class="p">)</span>  <span class="c1"># nosec: B104</span>
+</span><span id="L-26"><a href="#L-26"><span class="linenos">26</span></a><span class="k">def</span><span class="w"> </span><span class="nf">serve</span><span class="p">(</span><span class="n">port</span><span class="o">=</span><span class="mi">8080</span><span class="p">):</span>
+</span><span id="L-27"><a href="#L-27"><span class="linenos">27</span></a>    <span class="n">flight_server</span> <span class="o">=</span> <span class="n">BallServer</span><span class="p">(</span><span class="n">host</span><span class="o">=</span><span class="s2">&quot;0.0.0.0&quot;</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="n">port</span><span class="p">)</span>  <span class="c1"># nosec: B104</span>
+</span><span id="L-28"><a href="#L-28"><span class="linenos">28</span></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Flight Server is listening on port 8080...&quot;</span><span class="p">)</span>
+</span><span id="L-29"><a href="#L-29"><span class="linenos">29</span></a>    <span class="n">flight_server</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+</span><span id="L-30"><a href="#L-30"><span class="linenos">30</span></a>
+</span><span id="L-31"><a href="#L-31"><span class="linenos">31</span></a>
+</span><span id="L-32"><a href="#L-32"><span class="linenos">32</span></a><span class="c1"># entry point for Docker</span>
+</span><span id="L-33"><a href="#L-33"><span class="linenos">33</span></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>  <span class="c1"># pragma: no cover</span>
+</span><span id="L-34"><a href="#L-34"><span class="linenos">34</span></a>    <span class="n">serve</span><span class="p">(</span><span class="n">port</span><span class="o">=</span><span class="mi">8080</span><span class="p">)</span>
+</span><span id="L-35"><a href="#L-35"><span class="linenos">35</span></a>    <span class="c1"># BallServer.start(host=&quot;0.0.0.0&quot;, port=8080)  # nosec: B104</span>
 </span></pre></div>
 
 
@@ -160,6 +170,27 @@
     
 
                             </div>
+                </section>
+                <section id="serve">
+                            <input id="serve-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
+<div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">serve</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">port</span><span class="o">=</span><span class="mi">8080</span></span><span class="return-annotation">):</span></span>
+
+                <label class="view-source-button" for="serve-view-source"><span>View Source</span></label>
+
+    </div>
+    <a class="headerlink" href="#serve"></a>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="serve-27"><a href="#serve-27"><span class="linenos">27</span></a><span class="k">def</span><span class="w"> </span><span class="nf">serve</span><span class="p">(</span><span class="n">port</span><span class="o">=</span><span class="mi">8080</span><span class="p">):</span>
+</span><span id="serve-28"><a href="#serve-28"><span class="linenos">28</span></a>    <span class="n">flight_server</span> <span class="o">=</span> <span class="n">BallServer</span><span class="p">(</span><span class="n">host</span><span class="o">=</span><span class="s2">&quot;0.0.0.0&quot;</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="n">port</span><span class="p">)</span>  <span class="c1"># nosec: B104</span>
+</span><span id="serve-29"><a href="#serve-29"><span class="linenos">29</span></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Flight Server is listening on port 8080...&quot;</span><span class="p">)</span>
+</span><span id="serve-30"><a href="#serve-30"><span class="linenos">30</span></a>    <span class="n">flight_server</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+</span></pre></div>
+
+
+    
+
                 </section>
     </main>
 <script>
