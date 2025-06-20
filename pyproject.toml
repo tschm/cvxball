@@ -21,7 +21,7 @@ dev = [
     "pytest-cov>=6.0.0",
     "pre-commit>=4.0.1",
     "kaleido==1.0.0",
-    "mosek==11.0.22",
+    "mosek==11.0.23",
     "matplotlib>=3.10.0",
     "plotly>=5.24.1",
     "marimo>=0.11.6",
