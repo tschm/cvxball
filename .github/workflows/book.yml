@@ -57,5 +57,3 @@ jobs:
               "Coverage":"./tests/html-coverage/index.html",
               "Tests":"./tests/html-report/report.html"
             }
-    
-  book:
