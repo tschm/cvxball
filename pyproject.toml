@@ -56,3 +56,6 @@ exclude = ["B104"]
 #server = "cvx.ball.server:BallServer.start"
 #client = "example.client:main"
 demo = "example.client:main"
+
+[tool.deptry.package_module_name_map]
+cvxpy-base = ["cvxpy"]
