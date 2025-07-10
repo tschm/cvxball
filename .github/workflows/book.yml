@@ -29,9 +29,9 @@ jobs:
     runs-on: "ubuntu-latest"
     steps:
       - name: "Build the virtual environment for ${{ github.repository }}"
-        uses: tschm/cradle/actions/environment@v0.3.0
+        uses: tschm/cradle/actions/environment@v0.3.01
 
-      - uses: tschm/cradle/actions/coverage@v0.3.0
+      - uses: tschm/cradle/actions/coverage@v0.3.01
         with:
           source-folder: 'src/cvx'
           tests-folder: 'src/tests'
