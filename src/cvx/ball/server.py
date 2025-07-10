@@ -1,5 +1,5 @@
 import numpy as np
-from numpy_flight import Server
+from flight import Server
 
 from .solver import min_circle_cvx
 
