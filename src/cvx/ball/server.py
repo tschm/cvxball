@@ -1,7 +1,7 @@
 import numpy as np
 from tschm.flight import Server
 
-from cvx.ball.solver import min_circle_cvx
+from .solver import min_circle_cvx
 
 
 class BallServer(Server):
