@@ -60,4 +60,3 @@ demo = "example.client:main"
 [tool.deptry.package_module_name_map]
 cvxpy-base = ["cvxpy"]
 numpy-flight = ["flight"]
-
