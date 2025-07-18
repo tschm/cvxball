@@ -1,4 +1,5 @@
 import marimo
+import secrets
 
 __generated_with = "0.11.6"
 app = marimo.App()
@@ -74,7 +75,7 @@ def _():
     n = 2
     k = 500
 
-    p = np.array([[random.gauss(0.0, 10.0) for nn in range(n)] for kk in range(k)])
+    p = np.array([[secrets.SystemRandom().gauss(0.0, 10.0) for nn in range(n)] for kk in range(k)])
 
     plot_points(p)
     return k, mpatches, n, np, p, plot_points, plt, random
