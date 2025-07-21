@@ -1,12 +1,15 @@
 """Tests for the .env file and the paths it points to.
 
-This module verifies that the .env file exists in the project root directory
-and that the folder paths specified in it exist in the project structure.
+This module verifies that:
+1. The .env file exists in the project root
+2. The folder paths specified in the .env file (MARIMO_FOLDER, SOURCE_FOLDER, TESTS_FOLDER)
+   exist in the project structure and are valid directories
 """
 
 from pathlib import Path
 
 import pytest
+from dotenv import dotenv_values
 
 
 @pytest.fixture
@@ -23,16 +26,12 @@ def project_root() -> Path:
 def env_content(project_root: Path) -> dict[str, str]:
     """Fixture that provides the content of the .env file as a dictionary.
 
-    Args:
-        project_root: The path to the project root directory.
-
     Returns:
-        Dict[str, str]: A dictionary containing the key-value pairs from the .env file.
+        dict: A dictionary containing the key-value pairs from the .env file.
+
     """
     # Get the project root directory
     env_file_path = project_root / ".env"
-
-    from dotenv import dotenv_values
 
     return dotenv_values(env_file_path)
 
@@ -61,6 +60,7 @@ def test_folder_exists(env_content: dict[str, str], project_root: Path, folder_k
 
     Verifies:
         The folder path exists in the project structure.
+
     """
     # Get the folder path from the env_content fixture
     folder_path = env_content.get(folder_key)
