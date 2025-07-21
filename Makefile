@@ -26,7 +26,7 @@ uv:
 
 install: uv ## Install all dependencies using uv
 	@printf "$(BLUE)Installing dependencies...$(RESET)\n"
-	@uv venv --python 3.12
+	@uv venv --clear --python 3.12
 	@uv sync --all-extras --frozen
 
 ##@ Code Quality
@@ -81,15 +81,16 @@ clean: ## Clean generated files and directories
 	@git fetch -p
 	@git branch -vv | grep ': gone]' | awk '{print $$1}' | xargs -r git branch -D
 
-##@ Marimo & Jupyter
+##@ Marimo
 
-marimo: uv ## Start a Marimo server
-	@printf "$(BLUE)Start Marimo server...$(RESET)\n"
-	@uvx marimo edit --sandbox $(MARIMO_FOLDER)
+marimo: uv ## Start a Marimo server (use FILE=filename.py to specify a file)
+	@if [ -z "$(FILE)" ]; then \
+		echo "❌ FILE is required. Usage: make marimo FILE=demo.py" >&2; \
+		exit 1; \
+	fi
 
-#run-marimo: uv ## Run the Marimo notebook from the command line
-#	@printf "$(BLUE)Running Marimo notebook...$(RESET)\n"
-#	@uvx marimo run --sandbox book/marimo/demo.py
+	@printf "$(BLUE)Start Marimo server with $(MARIMO_FOLDER)/$(FILE)...$(RESET)\n"
+	@uvx marimo edit --sandbox $(MARIMO_FOLDER)/$(FILE)
 
 ##@ Help
 
