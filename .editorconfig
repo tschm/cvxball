@@ -1,28 +1,12 @@
-# EditorConfig is awesome: https://EditorConfig.org
-
-# Root of the file, defines the configuration scope.
 root = true
 
-# 1. Top-level editor settings for all files in the repository
-[*]
-# Use 4 spaces for indentation
+[*.{py,rst,txt}]
 indent_style = space
-indent_size = 4
-# Ensure no trailing whitespace at the end of lines
 trim_trailing_whitespace = true
-# Ensure that files end with a newline
-end_of_line = lf
-# Ensure UTF-8 encoding for all files
-charset = utf-8
-# Insert final newline if file doesn't have it
-insert_final_newline = true
-
-# 2. Specific settings for Python files
-[*.py]
-# Use 4 spaces for indentation (Python's PEP-8 standard)
 indent_size = 4
+end_of_line = LF
 
-# 4. Markdown files settings
-[*.md]
-# Ensure no trailing spaces in Markdown files
-trim_trailing_whitespace = true
+[*.yml]
+indent_style = space
+indent_size = 2
+end_of_line = LF

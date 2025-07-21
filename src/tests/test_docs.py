@@ -1,12 +1,29 @@
+"""Tests for the documentation.
+
+This module tests that the Python code examples in the project's README.md file
+are valid and can be executed without errors using doctest.
+"""
+
 import doctest
 import os
 import re
+from pathlib import Path
 
 import pytest
+from _pytest.capture import CaptureFixture
 
 
 @pytest.fixture()
-def docstring(root_dir):
+def docstring(root_dir: Path) -> str:
+    """Extract Python code blocks from README.md and prepare them for doctest.
+
+    Args:
+        root_dir: The root directory of the project.
+
+    Returns:
+        str: A string containing all Python code blocks from README.md,
+             formatted as a docstring for doctest to process.
+    """
     # Read the README.md file
     with open(root_dir / "README.md") as f:
         content = f.read()
@@ -22,7 +39,20 @@ def docstring(root_dir):
     return docstring
 
 
-def test_blocks(root_dir, docstring, capfd):
+def test_blocks(root_dir: Path, docstring: str, capfd: CaptureFixture[str]) -> None:
+    """Test that the Python code blocks in README.md execute without errors.
+
+    Args:
+        root_dir: The root directory of the project.
+        docstring: The extracted Python code blocks from README.md.
+        capfd: Pytest fixture to capture stdout/stderr output.
+
+    Raises:
+        pytest.fail: If any of the code blocks fail to execute correctly.
+
+    Verifies:
+        All Python code examples in the README.md file can be executed without errors.
+    """
     os.chdir(root_dir)
 
     try:

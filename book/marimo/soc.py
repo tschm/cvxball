@@ -1,3 +1,5 @@
+"""Second order cones."""
+
 import marimo
 
 __generated_with = "0.11.6"

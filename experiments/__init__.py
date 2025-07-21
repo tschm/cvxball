@@ -1,3 +1,10 @@
+"""Experiments Package.
+
+This package contains various experimental implementations and performance benchmarks
+for the minimum enclosing ball algorithms. It includes alternative implementations,
+performance comparisons, and asymptotic analysis of the algorithms.
+"""
+
 #    Copyright 2025 Stanford University Convex Optimization Group
 #
 #    Licensed under the Apache License, Version 2.0 (the "License");
