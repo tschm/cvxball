@@ -1,3 +1,6 @@
+# This file is part of the tschm/.config-templates repository
+# (https://github.com/tschm/.config-templates).
+#
 # Colors for pretty output
 BLUE := \033[36m
 BOLD := \033[1m
@@ -13,10 +16,11 @@ endif
 SOURCE_FOLDER ?= src
 TESTS_FOLDER ?= src/tests
 MARIMO_FOLDER ?= book/marimo
+OPTIONS ?=
 
 .DEFAULT_GOAL := help
 
-.PHONY: help verify install fmt lint test build check marimo clean docs
+.PHONY: help verify install fmt lint deptry test build check marimo clean docs pyproject
 
 ##@ Development Setup
 
@@ -41,6 +45,10 @@ lint: uv ## Run linters only
 
 check: lint test ## Run all checks (lint and test)
 	@printf "$(GREEN)All checks passed!$(RESET)\n"
+
+deptry: uv ## Run deptry (use OPTIONS="--your-options" to pass options)
+	@printf "$(BLUE)Running deptry...$(RESET)\n"
+	@uvx deptry $(SOURCE_FOLDER) $(OPTIONS)
 
 ##@ Testing
 
