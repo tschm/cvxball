@@ -7,6 +7,7 @@ can be executed without errors.
 import subprocess
 import sys
 from pathlib import Path
+from security import safe_command
 
 
 def test_notebooks(root_dir: Path) -> None:
@@ -33,7 +34,7 @@ def test_notebooks(root_dir: Path) -> None:
     # Loop over the files and run them
     for py_file in py_files:
         print(f"Running {py_file.name}...")
-        result = subprocess.run([sys.executable, str(py_file)], capture_output=True, text=True)
+        result = safe_command.run(subprocess.run, [sys.executable, str(py_file)], capture_output=True, text=True)
 
         # Print the result of running the Python file
         if result.returncode == 0:
