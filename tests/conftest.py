@@ -18,4 +18,4 @@ def root_fixture() -> Path:
     Returns:
         Path: A Path object representing the root directory of the project.
     """
-    return Path(__file__).parent.parent.parent
+    return Path(__file__).parent.parent
