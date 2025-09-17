@@ -10,9 +10,9 @@ from typing import Any
 
 import mosek.fusion as mf
 import numpy as np
+from cvx.ball.utils.circle import Circle
 
 from cvx.ball.solver import min_circle_cvx
-from cvx.ball.utils.circle import Circle
 
 
 def min_circle_mosek(points: np.ndarray, **kwargs: Any) -> Circle:
