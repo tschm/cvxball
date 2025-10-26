@@ -4,12 +4,12 @@ version = "0.0.0"
 description = "Fast computation of the smallest enclosing sphere"
 authors = [{name='Thomas Schmelzer', email= 'thomas.schmelzer@gmail.com'}]
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "cvxpy-base>=1.6.0",
     "numpy>=2",
     "clarabel>=0.10.0",
-    "numpy-flight>=0.0.14",
+    "numpy-flight>=0.0.16",
 ]
 
 [project.urls]
