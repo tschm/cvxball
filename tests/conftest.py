@@ -1,21 +1,29 @@
-"""Pytest configuration file for the tests package."""
+"""Shared pytest fixtures for the test suite.
 
-from pathlib import Path
+Provides the 'root' fixture that returns the repository root as a pathlib.Path,
+enabling tests to locate files and scripts relative to the project root.
+"""
+
+import logging
+import pathlib
 
 import pytest
 
 
-@pytest.fixture(name="root_dir")
-def root_fixture() -> Path:
-    """Fixture that provides the root directory path for the project.
+@pytest.fixture(scope="session")
+def root():
+    """Return the repository root directory as a pathlib.Path.
 
-    This fixture is useful for obtaining the root directory of the project
-    relative to the current file's location.
+    Used by tests to locate files and scripts relative to the project root.
+    """
+    return pathlib.Path(__file__).parent.parent
 
-    Parameters:
-        None
+
+@pytest.fixture(scope="session")
+def logger():
+    """Provide a session-scoped logger for tests.
 
     Returns:
-        Path: A Path object representing the root directory of the project.
+        logging.Logger: Logger configured for the test session.
     """
-    return Path(__file__).parent.parent
+    return logging.getLogger(__name__)
