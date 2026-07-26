@@ -22,7 +22,7 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Checkout at latest tag
-        uses: actions/checkout@v6.1.0
+        uses: actions/checkout@v7.0.1
         with:
           ref: ${{ steps.latest_tag.outputs.tag }}
 
