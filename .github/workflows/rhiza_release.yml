@@ -218,7 +218,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v7.6.0
         with:
-          version: "0.11.16"
+          version: "0.11.32"
 
       - name: Configure git auth for private packages
         uses: jebel-quant/rhiza/.github/actions/configure-git-auth@v1.2.2
@@ -622,7 +622,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v7.6.0
         with:
-          version: "0.11.16"
+          version: "0.11.32"
 
       - name: "Sync the virtual environment for ${{ github.repository }}"
         shell: bash
