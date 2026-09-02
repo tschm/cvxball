@@ -34,7 +34,7 @@ return `(radius, center)` — so they are interchangeable:
 ```python
 from cvxball.solver import min_circle_active_set
 
-radius, centre = min_circle_active_set(points)   # same call, same result
+radius, centre = min_circle_active_set(points)  # same call, same result
 ```
 
 The active-set method keeps a *support set* of points held on the ball's

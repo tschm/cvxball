@@ -29,16 +29,54 @@ def _point_clouds(draw: st.DrawFn) -> np.ndarray:
     return draw(arrays(dtype=np.float64, shape=(n, d), elements=_coords))
 
 
-def _assert_is_min_ball(points, radius, center, *, atol=1e-9):
-    """Assert (radius, center) satisfies the optimality certificate for the min ball.
+# --- Minimality: the dual certificate (issue #11) ------------------------------
 
-    The certificate is exactly the KKT pair of the problem: every point is enclosed,
-    and the radius is attained (otherwise the ball could still shrink).
+
+def _assert_is_minimal_ball(points: np.ndarray, radius: float, center: np.ndarray, rtol: float = 1e-3) -> None:
+    """Assert (radius, center) is the *minimum* enclosing ball, not merely a tight one.
+
+    Containment plus tightness -- every point inside, and the radius equal to the
+    farthest distance -- is necessary but **not** sufficient: any centre at all
+    satisfies both once its radius is set to its own farthest point. What separates
+    the minimum ball from a merely tight one is the dual (KKT) certificate: the
+    centre must lie in the convex hull of the points *on the boundary*.
+
+    Hull membership is a feasibility question -- do non-negative weights summing to
+    one reproduce the centre -- so it is asked as a linear program with no objective.
+
+    The reproduction has to be tolerant, not exact. Whenever fewer than ``d + 1``
+    points are on the boundary the hull is lower-dimensional -- two points in the
+    plane span a segment, a measure-zero set -- so an equality constraint is
+    infeasible for any centre carrying even one ULP of solver error, and the test
+    would fail on correct answers. Asking instead for the hull point to be within
+    ``tol`` of the centre keeps the geometry and drops the false precision.
+
+    ``tol`` is scaled by the extent of the cloud because the solver's own accuracy
+    is: an interior-point method resolves this centre to roughly ``1e-4`` *relative*,
+    so on the obtuse triangle below -- coordinates running to 10, boundary hull a
+    segment -- the centre lands 7e-4 off it. A fixed absolute tolerance either fails
+    there or is far too loose for a unit-scale cloud.
     """
+    tol = rtol * max(1.0, float(np.abs(points).max()))
     distances = np.linalg.norm(points - center, axis=1)
-    scale = max(1.0, float(abs(radius)))
-    assert distances.max() <= radius + atol * scale, "ball does not enclose every point"
-    assert distances.max() == pytest.approx(radius, abs=atol * scale), "ball is not tight"
+    assert distances.max() <= radius + tol, "ball does not enclose every point"
+
+    boundary = points[distances >= distances.max() - tol]
+    assert len(boundary) > 0, "no point lies on the boundary, so nothing pins the ball"
+
+    # Weights w >= 0 with sum(w) == 1 and |boundary.T @ w - center| <= tol,
+    # the two-sided bound written as the pair of inequalities linprog takes.
+    n = len(boundary)
+    result = linprog(
+        c=np.zeros(n),
+        A_ub=np.vstack([boundary.T, -boundary.T]),
+        b_ub=np.concatenate([center + tol, tol - center]),
+        A_eq=np.ones((1, n)),
+        b_eq=np.array([1.0]),
+        bounds=[(0.0, None)] * n,
+        method="highs",
+    )
+    assert result.status == 0, f"centre {center} is outside the convex hull of its {n} boundary point(s)"
 
 
 @pytest.mark.parametrize("solver", SOLVERS, ids=SOLVER_IDS)
@@ -97,7 +135,7 @@ def test_active_set_agrees_with_clarabel(points: np.ndarray) -> None:
 
     assert radius_a == pytest.approx(radius_c, abs=1e-5, rel=1e-5)
     # The active-set answer is held to its own (exact) standard...
-    _assert_is_min_ball(points, radius_a, center_a, atol=1e-8)
+    _assert_is_minimal_ball(points, radius_a, center_a)
     # ...while the centres only have to agree to interior-point accuracy. Clarabel is
     # the loose one here: on a cloud whose points all sit on the optimal sphere it
     # misplaces the centre by ~3e-4, where the active-set method is exact.
@@ -166,7 +204,7 @@ def test_active_set_drops_negative_weight() -> None:
     points = np.array([[0.3, -3.5], [4.6, -1.0], [-2.0, 3.5], [-3.8, 2.3], [-3.1, -1.1]])
     radius, center = min_circle_active_set(points)
 
-    _assert_is_min_ball(points, radius, center)
+    _assert_is_minimal_ball(points, radius, center)
     assert radius == pytest.approx(min_circle_clarabel(points)[0], abs=1e-6)
 
 
@@ -180,7 +218,7 @@ def test_active_set_affinely_dependent_support() -> None:
     points = np.array([[3.2, 4.3], [-3.4, 3.2], [2.8, -2.6], [-2.1, 4.6], [-1.4, -2.1]])
     radius, center = min_circle_active_set(points)
 
-    _assert_is_min_ball(points, radius, center)
+    _assert_is_minimal_ball(points, radius, center)
     assert radius == pytest.approx(min_circle_clarabel(points)[0], abs=1e-6)
 
 
@@ -189,7 +227,7 @@ def test_active_set_dependent_and_dropping() -> None:
     points = np.array([[-0.9, -3.5], [-4.9, 1.4], [-2.7, 4.6], [-3.0, -1.8], [4.8, 0.2]])
     radius, center = min_circle_active_set(points)
 
-    _assert_is_min_ball(points, radius, center)
+    _assert_is_minimal_ball(points, radius, center)
     assert radius == pytest.approx(min_circle_clarabel(points)[0], abs=1e-6)
 
 
@@ -284,54 +322,6 @@ def test_active_set_does_not_mutate_input() -> None:
     original = points.copy()
     min_circle_active_set(points)
     assert np.array_equal(points, original)
-# --- Minimality: the dual certificate (issue #11) ------------------------------
-
-
-def _assert_is_minimal_ball(points: np.ndarray, radius: float, center: np.ndarray, rtol: float = 1e-3) -> None:
-    """Assert (radius, center) is the *minimum* enclosing ball, not merely a tight one.
-
-    Containment plus tightness -- every point inside, and the radius equal to the
-    farthest distance -- is necessary but **not** sufficient: any centre at all
-    satisfies both once its radius is set to its own farthest point. What separates
-    the minimum ball from a merely tight one is the dual (KKT) certificate: the
-    centre must lie in the convex hull of the points *on the boundary*.
-
-    Hull membership is a feasibility question -- do non-negative weights summing to
-    one reproduce the centre -- so it is asked as a linear program with no objective.
-
-    The reproduction has to be tolerant, not exact. Whenever fewer than ``d + 1``
-    points are on the boundary the hull is lower-dimensional -- two points in the
-    plane span a segment, a measure-zero set -- so an equality constraint is
-    infeasible for any centre carrying even one ULP of solver error, and the test
-    would fail on correct answers. Asking instead for the hull point to be within
-    ``tol`` of the centre keeps the geometry and drops the false precision.
-
-    ``tol`` is scaled by the extent of the cloud because the solver's own accuracy
-    is: an interior-point method resolves this centre to roughly ``1e-4`` *relative*,
-    so on the obtuse triangle below -- coordinates running to 10, boundary hull a
-    segment -- the centre lands 7e-4 off it. A fixed absolute tolerance either fails
-    there or is far too loose for a unit-scale cloud.
-    """
-    tol = rtol * max(1.0, float(np.abs(points).max()))
-    distances = np.linalg.norm(points - center, axis=1)
-    assert distances.max() <= radius + tol, "ball does not enclose every point"
-
-    boundary = points[distances >= distances.max() - tol]
-    assert len(boundary) > 0, "no point lies on the boundary, so nothing pins the ball"
-
-    # Weights w >= 0 with sum(w) == 1 and |boundary.T @ w - center| <= tol,
-    # the two-sided bound written as the pair of inequalities linprog takes.
-    n = len(boundary)
-    result = linprog(
-        c=np.zeros(n),
-        A_ub=np.vstack([boundary.T, -boundary.T]),
-        b_ub=np.concatenate([center + tol, tol - center]),
-        A_eq=np.ones((1, n)),
-        b_eq=np.array([1.0]),
-        bounds=[(0.0, None)] * n,
-        method="highs",
-    )
-    assert result.status == 0, f"centre {center} is outside the convex hull of its {n} boundary point(s)"
 
 
 @pytest.mark.parametrize(
@@ -348,18 +338,20 @@ def _assert_is_minimal_ball(points: np.ndarray, radius: float, center: np.ndarra
     ],
     ids=lambda v: v if isinstance(v, str) else "",
 )
-def test_ball_is_minimal(name: str, points: np.ndarray) -> None:
-    """The returned ball satisfies the dual certificate, so it is genuinely minimal."""
-    radius, center = min_circle_clarabel(points)
+@pytest.mark.parametrize("solver", SOLVERS, ids=SOLVER_IDS)
+def test_ball_is_minimal(solver, name: str, points: np.ndarray) -> None:
+    """Each solver's ball satisfies the dual certificate, so it is genuinely minimal."""
+    radius, center = solver(points)
     _assert_is_minimal_ball(points, radius, center)
 
 
 @pytest.mark.property
+@pytest.mark.parametrize("solver", SOLVERS, ids=SOLVER_IDS)
 @settings(deadline=None, max_examples=25)
 @given(points=_point_clouds())
-def test_ball_is_minimal_property(points: np.ndarray) -> None:
-    """The dual certificate holds across randomly generated clouds too."""
-    radius, center = min_circle_clarabel(points)
+def test_ball_is_minimal_property(solver, points: np.ndarray) -> None:
+    """The dual certificate holds for each solver across randomly generated clouds."""
+    radius, center = solver(points)
     _assert_is_minimal_ball(points, radius, center)
 
 
@@ -378,19 +370,26 @@ def test_ball_is_minimal_property(points: np.ndarray) -> None:
     ],
     ids=["1d", "3d", "no-points", "no-coords", "nan", "inf"],
 )
-def test_rejects_malformed_input(points: np.ndarray, match: str) -> None:
+@pytest.mark.parametrize("solver", SOLVERS, ids=SOLVER_IDS)
+def test_rejects_malformed_input(solver, points: np.ndarray, match: str) -> None:
     """Malformed input is refused with a message about the input, not the solver.
 
     Each of these used to surface as an internal error: a 1-D array failed while
-    unpacking ``points.shape``, and the rest reached Clarabel and returned as
-    ``DualInfeasible`` or ``NumericalError``.
+    unpacking ``points.shape``, the rest reached Clarabel and returned as
+    ``DualInfeasible`` or ``NumericalError``, and in the active-set method a 1-D
+    array surfaced a raw NumPy ``einsum`` complaint from deep inside ``_sq_dist``.
+
+    Parametrising over both solvers is what keeps this honest: the guarantee is a
+    property of the package's public surface, not of whichever solver happened to
+    be written first.
     """
     with pytest.raises(ValueError, match=match):
-        min_circle_clarabel(points)
+        solver(points)
 
 
-def test_accepts_integer_input() -> None:
+@pytest.mark.parametrize("solver", SOLVERS, ids=SOLVER_IDS)
+def test_accepts_integer_input(solver) -> None:
     """Integer coordinates are valid and are converted rather than refused."""
-    radius, center = min_circle_clarabel(np.array([[0, 0], [3, 4]]))
+    radius, center = solver(np.array([[0, 0], [3, 4]]))
     assert radius == pytest.approx(2.5, abs=1e-4)
     assert center == pytest.approx([1.5, 2.0], abs=1e-4)

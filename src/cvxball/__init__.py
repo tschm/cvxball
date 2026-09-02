@@ -1,8 +1,8 @@
 """Core package for minimum enclosing ball utilities and solvers.
 
-Exposes the version and the solver itself, so the whole public surface is
-reachable as ``from cvxball import min_circle_clarabel``. The submodule path
-``cvxball.solver.min_circle_clarabel`` keeps working, so this is additive --
+Exposes the version and both solvers, so the whole public surface is reachable
+as ``from cvxball import min_circle_clarabel, min_circle_active_set``. The
+submodule paths under ``cvxball.solver`` keep working, so this is additive --
 but the short form is the documented one, which leaves the module layout free
 to change without breaking callers.
 
@@ -14,8 +14,8 @@ caller is about to need.
 
 import importlib.metadata
 
-from cvxball.solver import min_circle_clarabel
+from cvxball.solver import min_circle_active_set, min_circle_clarabel
 
 __version__ = importlib.metadata.version("cvxball")
 
-__all__ = ["__version__", "min_circle_clarabel"]
+__all__ = ["__version__", "min_circle_active_set", "min_circle_clarabel"]

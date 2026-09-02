@@ -338,16 +338,28 @@ def min_circle_active_set(points: np.ndarray, verbose: bool = False) -> tuple[fl
         radius (float) and *center* is a numpy array of shape ``(d,)``.
 
     Raises:
-        ValueError: If the iteration limit is reached without the optimality
-                    certificate holding.
+        ValueError: If ``points`` is not a finite, non-empty ``(n, d)`` array
+                    (see :func:`_validate`), or if the iteration limit is reached
+                    without the optimality certificate holding.
 
     Example:
+        The same right triangle as :func:`min_circle_clarabel`, whose smallest
+        enclosing circle is the one on its hypotenuse.  Both values are pinned to
+        full precision here, where the cone program's example can only pin its
+        centre to three decimals — this method stops at an exact vertex of the
+        dual feasible set, so on an input whose answer is exactly representable it
+        returns that answer bit-for-bit.
+
         >>> import numpy as np
-        >>> from cvxball.solver import min_circle_active_set
+        >>> from cvxball import min_circle_active_set
         >>> points = np.array([[0, 0], [1, 0], [0, 1]])
         >>> radius, center = min_circle_active_set(points)
+        >>> radius == 2**0.5 / 2
+        True
+        >>> center
+        array([0.5, 0.5])
     """
-    pts = np.asarray(points, dtype=np.float64)
+    pts = _validate(points)
     n = pts.shape[0]
 
     # Work in coordinates centred on the cloud, undoing the shift on the way out.
