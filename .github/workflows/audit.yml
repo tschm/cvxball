@@ -1,0 +1,102 @@
+# Repo-owned, deliberately NOT named `rhiza_*`: nothing syncs this file, so
+# `/rhiza:update` will neither overwrite it nor bump what it pins.
+#
+# It covers two checks the rhiza v1.7.2 gates leave out, both of which this
+# repository wants:
+#
+#   dependency-advisories  rhiza's `security` task is bandit alone -- SAST over
+#                          the source this repo owns, which never looks at what
+#                          is installed. Upstream dropped pip-audit in #1416 and
+#                          pins its absence with a test, so the gap is closed for
+#                          the template repo (via its own weekly job) and left
+#                          open for consumers. This is that consumer's answer.
+#
+#   strict-types           rhiza's `typecheck` task runs `ty` only. mypy --strict
+#                          is not redundant with it: `[[tool.mypy.overrides]]` in
+#                          pyproject.toml exists because clarabel and scipy ship
+#                          no py.typed, and without mypy running, that block is
+#                          dead config claiming a rigour nothing enforced.
+#
+# The schedule matters as much as the push trigger: an advisory is published
+# against pins that did not change, so a push-only audit would never see it.
+
+name: AUDIT
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 7 * * 1"  # Mondays 07:00 UTC, an hour before (RHIZA) WEEKLY
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-advisories:
+    name: Dependency advisories (pip-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          version: "0.11.32"
+
+      # Audit the committed lockfile rather than a fresh resolve, so this reports
+      # on the versions the project actually pins. Runtime dependencies only:
+      # those are what ships to a user of the library, and an advisory against a
+      # notebook or plotting dev dependency should not fail the build.
+      #
+      # --no-hashes is required, not cosmetic: pip-audit rejects a hash-pinned
+      # export outright ("invalid requirements input"). --no-annotate just drops
+      # the `# via` comments.
+      - name: Export runtime dependencies from uv.lock
+        run: >-
+          uv export --frozen --no-dev --no-emit-project
+          --no-hashes --no-annotate --format requirements-txt -o requirements-runtime.txt
+
+      # --strict fails on a package pip-audit cannot check, so an unauditable
+      # dependency surfaces instead of being silently skipped.
+      - name: Audit for known vulnerabilities
+        run: uvx pip-audit --requirement requirements-runtime.txt --strict
+
+      # The dev group too, but reporting only. It is a supply-chain exposure for
+      # the *build* rather than for anyone installing cvxball, and -- decisively --
+      # the fix is often not ours to take: at the time of writing the full set
+      # carries two advisories against pymdown-extensions 10.21.3, fixed in 11.0.0
+      # and 11.0.1, which `marimo` caps out with `pymdown-extensions>=10.21.2,<11`.
+      # Bumping marimo does not lift the cap. Gating on that would mean a red build
+      # nobody in this repo can turn green, which is the failure mode upstream cites
+      # for not shipping pip-audit at all -- so this step reports and does not block.
+      # Read it in the job log; it is expected to be non-empty.
+      - name: Report dev-dependency advisories (non-blocking)
+        continue-on-error: true
+        run: |
+          uv export --frozen --no-emit-project --no-hashes --no-annotate \
+            --format requirements-txt -o requirements-all.txt
+          uvx pip-audit --requirement requirements-all.txt
+
+  strict-types:
+    name: Strict type checking (mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          version: "0.11.32"
+
+      # mypy needs the project's dependencies importable to resolve numpy's own
+      # annotations; --frozen keeps it on the committed lockfile.
+      - name: Sync the environment
+        run: uv sync --frozen --all-extras --all-groups
+
+      # Settings come from [tool.mypy] in pyproject.toml. No flags beyond
+      # --strict, which is the mode the override block was written for.
+      - name: Run mypy --strict
+        run: uv run --with mypy mypy --strict src

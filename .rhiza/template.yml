@@ -1,5 +1,11 @@
 template-repository: jebel-quant/rhiza
-template-branch: "v1.1.3"
+template-branch: "v1.7.2"
+
+# Destination paths the sync must not deliver. `.github/CONFIG.md` documents the
+# secrets the rhiza workflows can use (PAT_TOKEN and friends); this repo does not
+# configure them, so the file described settings that do not exist here.
+exclude:
+  - .github/CONFIG.md
 
 profiles:
   - github-project
