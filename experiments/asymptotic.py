@@ -11,23 +11,23 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from cvxball.solver import min_circle_cvx
+from cvxball.solver import min_circle_clarabel
 
 
-def cvx(n: int) -> float:
-    """Solve a random instance with ``n`` points and return the radius.
+def clarabel_ball(n: int) -> tuple[float, np.ndarray]:
+    """Solve a random instance with ``n`` points.
 
     Args:
         n: Number of points to generate in 5 dimensions.
 
     Returns:
-        The optimal radius produced by the convex solver.
+        The ``(radius, center)`` pair produced by the Clarabel solver.
     """
     points = np.random.rand(n, 5)
-    return min_circle_cvx(points, solver="CLARABEL")
+    return min_circle_clarabel(points)
 
 
-def measure_execution_time(func: Callable[[int], float], n: int, num_trials: int = 3) -> float:
+def measure_execution_time(func: Callable[[int], object], n: int, num_trials: int = 3) -> float:
     """Run multiple trials and return average execution time."""
     times = []
     for _ in range(num_trials):
@@ -48,7 +48,7 @@ def run_analysis() -> tuple[list[int], list[float]]:
     execution_times = []
 
     for n in sequence:
-        avg_time = measure_execution_time(cvx, int(n))
+        avg_time = measure_execution_time(clarabel_ball, int(n))
         execution_times.append(avg_time)
         print(f"n={n}: {avg_time:.4f} seconds")
 

@@ -1,69 +1,15 @@
 """Convex utilities for computing the minimum enclosing circle/ball.
 
-Provides two solvers for the smallest enclosing ball problem:
-
-- :func:`min_circle_cvx`: uses CVXPY to model and then dispatch to a backend
-  solver (default: CLARABEL).
-- :func:`min_circle_clarabel`: bypasses CVXPY and calls the Clarabel solver
-  directly, which removes the CVXPY canonicalisation overhead.
+Provides :func:`min_circle_clarabel`, which assembles the second-order-cone
+program for the smallest enclosing ball by hand and calls the Clarabel solver
+directly.
 """
 
 from typing import Any
 
 import clarabel
-import cvxpy as cp
 import numpy as np
 import scipy.sparse as sp
-
-
-def min_circle_cvx(points: np.ndarray, **kwargs: Any) -> tuple[float, np.ndarray]:
-    """Compute the smallest enclosing circle for a set of points using convex optimization.
-
-    This function solves the convex optimization problem to find the minimum radius
-    circle that contains all the given points. It uses a second-order cone constraint
-    to enforce that all points lie within the circle.
-
-    Args:
-        points: A numpy array of shape (n, d) where n is the number of points
-               and d is the dimension of the space.
-        **kwargs: Additional keyword arguments to pass to the solver.
-                 Common options include 'solver' to specify which CVXPY solver to use.
-
-    Returns:
-        A tuple containing:
-            - The radius of the minimum enclosing circle (float)
-            - The center coordinates of the circle (numpy.ndarray)
-
-    Example:
-        >>> import numpy as np
-        >>> from cvxball.solver import min_circle_cvx
-        >>> points = np.array([[0, 0], [1, 0], [0, 1]])
-        >>> radius, center = min_circle_cvx(points, solver="CLARABEL")
-    """
-    # cvxpy variable for the radius
-    r = cp.Variable(shape=1, name="Radius")
-    # cvxpy variable for the midpoint
-    x = cp.Variable(points.shape[1], name="Midpoint")
-    objective = cp.Minimize(r)
-    constraints: list[cp.Constraint] = [
-        cp.SOC(
-            # Elementwise broadcast of the scalar radius across all points.
-            # `cp.multiply` (not `*`) avoids CVXPY's deprecated `*`-as-matmul
-            # path, which is ambiguous when n == 1 ((1,) * (1,) -> dot product).
-            cp.multiply(r, np.ones(points.shape[0])),  # type: ignore[attr-defined]  # cvxpy re-exports atoms via star-import; stubs don't expose them
-            points - x,  # Broadcasting handles this automatically
-            axis=1,
-        )
-    ]
-
-    problem = cp.Problem(objective=objective, constraints=constraints)
-    problem.solve(**kwargs)  # type: ignore[no-untyped-call]  # cvxpy's Problem.solve is unannotated
-
-    # Ensure the problem was solved successfully
-    if r.value is None or x.value is None:
-        raise ValueError("Optimization failed to find a solution")  # noqa: TRY003
-
-    return float(r.value[0]), x.value
 
 
 def _build_soc_program(
@@ -135,11 +81,8 @@ def _build_soc_program(
 def min_circle_clarabel(points: np.ndarray, verbose: bool = False) -> tuple[float, np.ndarray]:
     """Compute the smallest enclosing circle for a set of points using Clarabel directly.
 
-    This function solves the same convex optimisation problem as
-    :func:`min_circle_cvx` but bypasses CVXPY and calls the Clarabel solver
-    directly.  The second-order-cone program is assembled by
-    :func:`_build_soc_program`; this function then solves it and extracts the
-    optimal radius and centre.
+    The second-order-cone program is assembled by :func:`_build_soc_program`;
+    this function then solves it and extracts the optimal radius and centre.
 
     Args:
         points: A numpy array of shape ``(n, d)`` where *n* is the number of

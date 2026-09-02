@@ -15,7 +15,6 @@ classifiers = [
 ]
 
 dependencies = [
-    "cvxpy-base>=1.9.2",
     "clarabel>=0.11.1",
     "numpy>=2.4.6",
     "scipy>=1.17.1",
@@ -27,6 +26,7 @@ Repository = "https://github.com/cvxgrp/cvxball"
 
 [dependency-groups]
 dev = [
+    "cvxpy-base>=1.9.2",
     "kaleido==1.3.0",
     "plotly>=6.9.0",
     "marimo>=0.23.15",
@@ -58,7 +58,6 @@ package_module_name_map = { "cvxpy-base" = "cvxpy", clarabel = "clarabel", numpy
 
 [tool.deptry.per_rule_ignores]
 DEP002 = ["clarabel", "cvxpy-base"]
-DEP001 = ["cvxpy"]
 
 # clarabel and scipy ship without type information (no py.typed marker / stubs);
 # strict mypy would otherwise flag every import of them as import-untyped.
