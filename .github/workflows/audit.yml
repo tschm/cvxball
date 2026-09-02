@@ -63,6 +63,22 @@ jobs:
       - name: Audit for known vulnerabilities
         run: uvx pip-audit --requirement requirements-runtime.txt --strict
 
+      # The dev group too, but reporting only. It is a supply-chain exposure for
+      # the *build* rather than for anyone installing cvxball, and -- decisively --
+      # the fix is often not ours to take: at the time of writing the full set
+      # carries two advisories against pymdown-extensions 10.21.3, fixed in 11.0.0
+      # and 11.0.1, which `marimo` caps out with `pymdown-extensions>=10.21.2,<11`.
+      # Bumping marimo does not lift the cap. Gating on that would mean a red build
+      # nobody in this repo can turn green, which is the failure mode upstream cites
+      # for not shipping pip-audit at all -- so this step reports and does not block.
+      # Read it in the job log; it is expected to be non-empty.
+      - name: Report dev-dependency advisories (non-blocking)
+        continue-on-error: true
+        run: |
+          uv export --frozen --no-emit-project --no-hashes --no-annotate \
+            --format requirements-txt -o requirements-all.txt
+          uvx pip-audit --requirement requirements-all.txt
+
   strict-types:
     name: Strict type checking (mypy)
     runs-on: ubuntu-latest

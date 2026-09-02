@@ -12,7 +12,7 @@ We compute the smallest enclosing circle/ball for a set of points.
 
 ```python
 import numpy as np
-from cvxball.solver import min_circle_clarabel
+from cvxball import min_circle_clarabel
 
 # create a numpy array where each row corresponds to a point
 points = np.array([[2.0, 4.0], [0, 0], [2.5, 2.0]])

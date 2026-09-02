@@ -147,7 +147,7 @@ def min_circle_clarabel(points: np.ndarray, verbose: bool = False) -> tuple[floa
         rather than catch a regression.
 
         >>> import numpy as np
-        >>> from cvxball.solver import min_circle_clarabel
+        >>> from cvxball import min_circle_clarabel
         >>> points = np.array([[0, 0], [1, 0], [0, 1]])
         >>> radius, center = min_circle_clarabel(points)
         >>> round(radius, 6)
@@ -165,6 +165,17 @@ def min_circle_clarabel(points: np.ndarray, verbose: bool = False) -> tuple[floa
     solution = solver.solve()
 
     if solution.status != clarabel.SolverStatus.Solved:  # ty: ignore[unresolved-attribute]
-        raise ValueError(f"Clarabel did not converge: status = {solution.status}")  # noqa: TRY003
+        # `_validate` has already ruled out the input-shaped causes -- empty, wrong
+        # rank, non-finite -- so what reaches here is a well-formed cloud the solver
+        # still could not handle. In practice that means conditioning: coordinates
+        # spanning many orders of magnitude, or an extent negligible against the
+        # cloud's distance from the origin. Both are recoverable by the caller, so
+        # say so rather than only naming Clarabel's internal state.
+        raise ValueError(  # noqa: TRY003
+            f"Clarabel did not converge: status = {solution.status}. "
+            f"The input is well-formed, so this usually means poor conditioning: "
+            f"try recentring the points on their mean, or rescaling them to a "
+            f"comparable magnitude, and solving again."
+        )
 
     return float(solution.x[0]), np.asarray(solution.x[1:])

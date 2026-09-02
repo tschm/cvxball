@@ -42,8 +42,13 @@ def test_min_circle_clarabel_non_converged():
 
     with patch("clarabel.DefaultSolver") as mock_solver_cls:  # ty: ignore[unresolved-attribute]
         mock_solver_cls.return_value.solve.return_value = bad_solution
-        with pytest.raises(ValueError, match="Clarabel did not converge"):
+        with pytest.raises(ValueError, match="Clarabel did not converge") as excinfo:
             min_circle_clarabel(p)
+
+    # The status alone is not actionable, so the message must also say what the
+    # caller can do about it.
+    assert "recentring" in str(excinfo.value)
+    assert "rescaling" in str(excinfo.value)
 
 
 # --- Property-based tests (issue #267) -----------------------------------------
