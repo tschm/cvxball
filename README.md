@@ -12,30 +12,22 @@ We compute the smallest enclosing circle/ball for a set of points.
 
 ```python
 import numpy as np
-from cvxball.solver import min_circle_cvx
+from cvxball.solver import min_circle_clarabel
 
 # create a numpy array where each row corresponds to a point
 points = np.array([[2.0, 4.0], [0, 0], [2.5, 2.0]])
 
-# compute the circle, pick any solver supporting conic constraints
-radius, centre = min_circle_cvx(points, solver="CLARABEL")
+# compute the smallest enclosing circle
+radius, centre = min_circle_clarabel(points)
 
 ```
 
-### 🔧 Which solver should I use?
+### 🔧 The solver
 
-The package ships two entry points that solve the same problem:
-
-- **`min_circle_cvx`** — models the problem with [CVXPY](https://www.cvxpy.org)
-  and dispatches to any conic backend (default: CLARABEL). Most convenient and
-  flexible; carries CVXPY's canonicalisation overhead.
-- **`min_circle_clarabel`** — assembles the second-order cone program directly
-  and calls [Clarabel](https://clarabel.org) without CVXPY. Faster on large
-  inputs since it skips canonicalisation, at the cost of a lower-level API.
-
-Prefer `min_circle_cvx` for convenience and solver flexibility; reach for
-`min_circle_clarabel` when canonicalisation overhead dominates (many points /
-tight loops).
+The package ships a single entry point, **`min_circle_clarabel`**. It assembles
+the second-order cone program directly and calls
+[Clarabel](https://clarabel.org), so there is no modelling-layer
+canonicalisation overhead — which matters on large inputs and in tight loops.
 
 ## 🧮 Background
 

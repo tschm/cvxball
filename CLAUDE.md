@@ -5,12 +5,10 @@ Guidance for Claude Code (and humans) working in this repository.
 ## What this project is
 
 `cvxball` computes the smallest enclosing sphere (minimum enclosing ball) of a
-set of points. The library lives in `src/cvxball/` and exposes two solvers:
+set of points. The library lives in `src/cvxball/` and exposes one solver:
 
-- `min_circle_cvx` — models the problem in CVXPY and dispatches to a backend
-  (default CLARABEL).
 - `min_circle_clarabel` — assembles the second-order-cone program directly and
-  calls Clarabel, skipping CVXPY canonicalisation.
+  calls Clarabel, with no modelling-layer canonicalisation in between.
 
 ## Ownership split: locally-owned vs Rhiza-synced
 

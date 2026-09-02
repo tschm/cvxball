@@ -11,8 +11,8 @@
 
 """Interactive marimo notebook demonstrating second-order cone formulations.
 
-This app explores multiple CVXPY formulations for the minimum enclosing ball
-and visualizes their behavior on random point sets.
+This app explores the second-order cone formulation of the minimum enclosing
+ball and visualizes its behavior on random point sets.
 """
 
 import marimo
@@ -27,7 +27,7 @@ with app.setup:
     import matplotlib.pyplot as plt
     import numpy as np
 
-    from cvxball.solver import min_circle_cvx
+    from cvxball.solver import min_circle_clarabel
 
 
 @app.cell
@@ -40,8 +40,8 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        cvxpy supports second order cones, see:
-        https://www.cvxpy.org/examples/basic/socp.html
+        Clarabel is an interior-point solver for second order cones, see:
+        https://clarabel.org
         """
     )
     return
@@ -114,7 +114,7 @@ def plot_points(p, p0=None, r0=None):
 def _():
     k = 500
     p = cloud(n=k)
-    r0, p0 = min_circle_cvx(p, solver="CLARABEL")
+    r0, p0 = min_circle_clarabel(p)
     print("r0^* = ", r0)
     print("p0^* = ", p0)
     plot_points(p, p0, r0)
