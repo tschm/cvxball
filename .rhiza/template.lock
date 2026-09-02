@@ -3,14 +3,14 @@ repo: jebel-quant/rhiza
 host: github
 ref: v1.7.2
 include: []
-exclude: []
+exclude:
+- .github/CONFIG.md
 templates: []
 profiles:
 - github-project
 files:
 - .bandit
 - .editorconfig
-- .github/CONFIG.md
 - .github/dependabot.yml
 - .github/release.yml
 - .github/rulesets/main-branch-protection.json
@@ -36,5 +36,5 @@ files:
 - pytest.ini
 - ruff.toml
 - tests/test_rhiza_packaging.py
-synced_at: '2026-09-02T11:47:23Z'
+synced_at: '2026-09-02T13:54:28Z'
 strategy: merge
