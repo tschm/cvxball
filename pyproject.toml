@@ -4,7 +4,7 @@ version = "1.0.2"
 description = "Fast computation of the smallest enclosing sphere"
 authors = [{name='Thomas Schmelzer', email= 'thomas.schmelzer@gmail.com'}]
 readme = "README.md"
-requires-python = ">=3.11,<3.14"
+requires-python = ">=3.11,<3.15"
 license = "MIT"
 classifiers = [
     "Private :: Do Not Upload",
@@ -64,3 +64,65 @@ DEP002 = ["clarabel", "cvxpy-base"]
 [[tool.mypy.overrides]]
 module = ["clarabel.*", "scipy.*"]
 ignore_missing_imports = true
+
+# CI settings. `ci-os-matrix` is the OS list the reusable rhiza CI workflow builds its
+# test matrix from: it shells out to `rhiza-task ci-os-matrix`, and the default is
+# `["ubuntu-latest"]` alone. Testing on macOS and Windows matters here because the solver
+# is numerical -- BLAS/LAPACK backends differ per platform, so a tolerance that holds on
+# Linux is not evidence it holds elsewhere.
+#
+# This used to live in `.rhiza/.env`, which rhiza v1.7.2 stopped managing and now treats
+# as a developer-local channel a CI checkout never contains -- so that file has been
+# removed and this table is the setting's only home. The table would win regardless,
+# ranking above `.rhiza/.env` (layer 4 vs layer 2); the file's other two settings,
+# SOURCE_FOLDER=src and MARIMO_FOLDER=docs/notebooks, matched rhiza-task's own defaults
+# and so needed no home at all.
+[tool.rhiza-task]
+ci-os-matrix = ["ubuntu-latest", "macos-latest", "windows-latest"]
+
+# Release versioning. Carried over from `.rhiza/.cfg.toml`, which rhiza v1.7.2 stopped
+# managing: that path is never auto-discovered by bump-my-version (it predates
+# jebel-quant/rhiza#1453), so leaving the config there meant `bump-my-version` silently
+# fell back to `git describe` and could cut a release at a version that already exists.
+# pyproject.toml is one of the files bump-my-version does search.
+#
+# `commit` and `tag` are false on purpose, and this is the one place the carried-over
+# config had to change rather than move: the release flow folds a freshly generated
+# CHANGELOG.md into the version-bump commit and pushes the tag itself, so letting
+# bump-my-version do either would add a second commit and a duplicate tag. The old
+# `pre_commit_hooks = ["uv sync", "git add uv.lock"]` went with them -- those run only
+# as part of a commit bump-my-version no longer makes, so relocking is the release
+# flow's job too.
+[tool.bumpversion]
+parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)(?:[-]?(?P<release>[a-z]+)[\\.]?(?P<pre_n>\\d+))?(?:\\+build\\.(?P<build_n>\\d+))?"
+serialize = ["{major}.{minor}.{patch}-{release}.{pre_n}+build.{build_n}", "{major}.{minor}.{patch}+build.{build_n}", "{major}.{minor}.{patch}-{release}.{pre_n}", "{major}.{minor}.{patch}"]
+search = "{current_version}"
+replace = "{new_version}"
+regex = false
+ignore_missing_version = false
+ignore_missing_files = false
+tag = false
+sign_tags = false
+tag_name = "v{new_version}"
+tag_message = "Bump version: {current_version} → {new_version}"
+allow_dirty = false
+commit = false
+message = "Chore: bump version {current_version} → {new_version}"
+commit_args = ""
+
+[tool.bumpversion.parts.release]
+optional_value = "prod"
+values = [
+    "dev",
+    "alpha",
+    "a",  # PEP 440 short form for alpha
+    "beta",
+    "b",  # PEP 440 short form for beta
+    "rc",
+    "prod"
+]
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'

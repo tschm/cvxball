@@ -19,7 +19,6 @@ points = np.array([[2.0, 4.0], [0, 0], [2.5, 2.0]])
 
 # compute the smallest enclosing circle
 radius, centre = min_circle_clarabel(points)
-
 ```
 
 ### 🔧 The solver
