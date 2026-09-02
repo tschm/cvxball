@@ -65,6 +65,20 @@ DEP002 = ["clarabel", "cvxpy-base"]
 module = ["clarabel.*", "scipy.*"]
 ignore_missing_imports = true
 
+# CI settings. `ci-os-matrix` is the OS list the reusable rhiza CI workflow builds its
+# test matrix from: it shells out to `rhiza-task ci-os-matrix`, and the default is
+# `["ubuntu-latest"]` alone. Testing on macOS and Windows matters here because the solver
+# is numerical -- BLAS/LAPACK backends differ per platform, so a tolerance that holds on
+# Linux is not evidence it holds elsewhere.
+#
+# This was previously set in `.rhiza/.env`, which rhiza v1.7.2 stopped managing and now
+# treats as a developer-local channel that a CI checkout never contains. The table
+# outranks that file (layer 4 vs layer 2), so `.rhiza/.env` can be deleted without
+# changing CI: its other two settings, SOURCE_FOLDER=src and MARIMO_FOLDER=docs/notebooks,
+# already match rhiza-task's own defaults.
+[tool.rhiza-task]
+ci-os-matrix = ["ubuntu-latest", "macos-latest", "windows-latest"]
+
 # Release versioning. Carried over from `.rhiza/.cfg.toml`, which rhiza v1.7.2 stopped
 # managing: that path is never auto-discovered by bump-my-version (it predates
 # jebel-quant/rhiza#1453), so leaving the config there meant `bump-my-version` silently
