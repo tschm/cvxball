@@ -12,6 +12,41 @@ import numpy as np
 import scipy.sparse as sp
 
 
+def _validate(points: np.ndarray) -> np.ndarray:
+    """Check that ``points`` is a usable point cloud, and return it as floats.
+
+    Every rejection here is one the solver would otherwise take: a 1-D array used
+    to fail when ``points.shape`` was unpacked into two names, and an empty or
+    non-finite cloud reached Clarabel and came back as ``DualInfeasible`` or
+    ``NumericalError`` -- a status describing the program rather than the input
+    that produced it.  Refusing the same cases with the reason keeps the caller's
+    error about the caller's data.
+
+    Args:
+        points: The candidate array of shape ``(n, d)``.
+
+    Returns:
+        ``points`` as a float64 array, ready for the solver.
+
+    Raises:
+        ValueError: If ``points`` is not two-dimensional, holds no points, has
+                    no coordinates, or contains a NaN or an infinity.
+    """
+    array = np.asarray(points, dtype=np.float64)
+
+    if array.ndim != 2:
+        raise ValueError(f"points must be a 2-D (n, d) array, got {array.ndim}-D of shape {array.shape}")  # noqa: TRY003
+    if array.shape[0] == 0:
+        raise ValueError("points is empty: the smallest enclosing ball of no points is undefined")  # noqa: TRY003
+    if array.shape[1] == 0:
+        raise ValueError("points has no coordinates: shape (n, 0) describes no ambient space")  # noqa: TRY003
+    if not np.isfinite(array).all():
+        bad = int(np.count_nonzero(~np.isfinite(array)))
+        raise ValueError(f"points must be finite: found {bad} NaN or infinite coordinate(s)")  # noqa: TRY003
+
+    return array
+
+
 def _build_soc_program(
     points: np.ndarray,
 ) -> tuple[sp.csc_matrix, np.ndarray, sp.csc_matrix, np.ndarray, list[Any]]:
@@ -95,15 +130,32 @@ def min_circle_clarabel(points: np.ndarray, verbose: bool = False) -> tuple[floa
         radius (float) and *center* is a numpy array of shape ``(d,)``.
 
     Raises:
-        ValueError: If Clarabel does not return a ``Solved`` status.
+        ValueError: If ``points`` is not a finite, non-empty ``(n, d)`` array
+                    (see :func:`_validate`), or if Clarabel does not return a
+                    ``Solved`` status.
 
     Example:
+        These three points form a right triangle, so the smallest enclosing
+        circle is the one on its hypotenuse: centred at ``(0.5, 0.5)`` with
+        radius ``sqrt(2) / 2``.  The values are asserted rather than merely
+        assigned, so the example fails if the answer ever changes.
+
+        The two are shown to different precisions because the solver resolves
+        them to different precisions: the radius is the objective and lands
+        within 1e-8, while the centre only converges to ~3e-5 here, so pinning
+        it past three decimals would make this example fail on some platforms
+        rather than catch a regression.
+
         >>> import numpy as np
         >>> from cvxball.solver import min_circle_clarabel
         >>> points = np.array([[0, 0], [1, 0], [0, 1]])
         >>> radius, center = min_circle_clarabel(points)
+        >>> round(radius, 6)
+        0.707107
+        >>> np.round(center, 3)
+        array([0.5, 0.5])
     """
-    p_mat, q, a_mat, b, cones = _build_soc_program(points)
+    p_mat, q, a_mat, b, cones = _build_soc_program(_validate(points))
 
     # --- Solve ---------------------------------------------------------------
     settings = clarabel.DefaultSettings.default()  # ty: ignore[unresolved-attribute]
