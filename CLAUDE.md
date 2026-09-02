@@ -5,10 +5,25 @@ Guidance for Claude Code (and humans) working in this repository.
 ## What this project is
 
 `cvxball` computes the smallest enclosing sphere (minimum enclosing ball) of a
-set of points. The library lives in `src/cvxball/` and exposes one solver:
+set of points. The library lives in `src/cvxball/` and exposes two solvers that
+share one interface — `(points, verbose=False) -> (radius, center)`, so they are
+interchangeable and the test suite parametrises the shared cases over both:
 
 - `min_circle_clarabel` — assembles the second-order-cone program directly and
   calls Clarabel, with no modelling-layer canonicalisation in between.
+- `min_circle_active_set` — an active-set QP method on the dual (a QP over the
+  unit simplex), maintaining the support set of points on the ball's boundary.
+  Pure NumPy. It terminates at an exact vertex rather than an interior-point
+  tolerance, and scales far better in the number of points.
+
+Two properties of the active-set code are load-bearing and easy to break:
+it is **scale-invariant** (no tolerance is tied to coordinates of magnitude 1 —
+the affine-rank test runs on edge vectors, the feasibility slack is sized off the
+cloud's extent, and the null-space direction is normalised before it meets a
+weight tolerance) and it is **origin-invariant** (it recentres the cloud first,
+and forms squared distances by differencing before squaring). Both are covered by
+tests; see `tests/test_solver.py::test_active_set_handles_tiny_scales` and
+`::test_active_set_far_from_origin` for what regressions look like.
 
 ## Ownership split: locally-owned vs Rhiza-synced
 
