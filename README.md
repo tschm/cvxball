@@ -21,12 +21,38 @@ points = np.array([[2.0, 4.0], [0, 0], [2.5, 2.0]])
 radius, centre = min_circle_clarabel(points)
 ```
 
-### 🔧 The solver
+### 🔧 The solvers
 
-The package ships a single entry point, **`min_circle_clarabel`**. It assembles
-the second-order cone program directly and calls
-[Clarabel](https://clarabel.org), so there is no modelling-layer
-canonicalisation overhead — which matters on large inputs and in tight loops.
+Two solvers share one interface — both take `(points, verbose=False)` and
+return `(radius, center)` — so they are interchangeable:
+
+| Solver | Approach |
+|---|---|
+| **`min_circle_clarabel`** | Assembles the second-order cone program directly and calls [Clarabel](https://clarabel.org), with no modelling-layer canonicalisation in between. |
+| **`min_circle_active_set`** | Runs an active-set QP method on the *dual* of the same problem. Pure NumPy, no solver dependency. |
+
+```python
+from cvxball.solver import min_circle_active_set
+
+radius, centre = min_circle_active_set(points)  # same call, same result
+```
+
+The active-set method keeps a *support set* of points held on the ball's
+boundary and repeatedly re-centres the ball on that set, dropping a support
+point whose dual weight would turn negative and adding the farthest point still
+left outside. Each iteration is one small dense solve of size at most the
+ambient dimension, so its cost is driven by $d$ rather than by $n$.
+
+Two consequences are worth knowing when picking between them. The active-set
+method stops at an *exact vertex* of the dual feasible set instead of at an
+interior-point tolerance, so on inputs where the answer is determined exactly —
+points already lying on a common sphere, say — it returns the radius to machine
+precision where an interior-point solver lands within its own tolerance. And
+because it touches all $n$ points only to find the next farthest one, it scales
+much better in $n$: on $20\,000$ points in $\mathbb{R}^{10}$ it is roughly
+three orders of magnitude faster here. The cone program, in exchange, is the
+more familiar formulation and the one to reach for if you want to extend the
+model with further conic constraints.
 
 ## 🧮 Background
 
@@ -102,3 +128,35 @@ both the center and the radius of the circle.
 The optimal center minimizes the maximum distance to any of the points,
 and the optimal radius ensures all points are inside
 or on the boundary of the circle.
+
+---
+
+### ♊ The dual, and what the active-set method exploits
+
+Attaching multipliers $u_i \geq 0$ to the constraints above and eliminating the
+centre gives the dual problem
+
+$$
+\max_u \quad \sum_i u_i \|p_i\|^2 - \Big\| \sum_i u_i p_i \Big\|^2
+\qquad \text{subject to} \quad u \geq 0, \ \sum_i u_i = 1,
+$$
+
+a quadratic program over the unit simplex. At the optimum the centre is the
+weighted average $\text{center} = \sum_i u_i p_i$ and the objective value is
+$r^2$. The complementary slackness conditions read
+
+$$
+\|p_i - \text{center}\| = r \ \text{ where } u_i > 0,
+\qquad
+\|p_i - \text{center}\| \leq r \ \text{ where } u_i = 0,
+$$
+
+which is exactly the geometric statement that the ball is pinned by the points
+on its boundary and encloses everything else. Those boundary points are the
+*support set*, they number at most $d + 1$, and the centre is a convex
+combination of them.
+
+That is what makes an active-set method natural here: the whole problem is
+determined by which handful of points sit on the boundary. The method searches
+over support sets directly, and every candidate it produces carries its own
+optimality certificate.
