@@ -3,9 +3,17 @@ template-branch: "v1.7.2"
 
 # Destination paths the sync must not deliver. `.github/CONFIG.md` documents the
 # secrets the rhiza workflows can use (PAT_TOKEN and friends); this repo does not
-# configure them, so the file described settings that do not exist here.
+# configure them, so the file described settings that do not exist here. The two
+# rulesets are declarative GitHub branch- and tag-protection definitions, and
+# nothing in this repo applies them: no workflow reads them and no gate checks
+# them, so they described repository settings that live elsewhere and could drift
+# from them silently. Excluding them here is also what releases them from the
+# check-managed-files hook, which refuses commits touching template.lock's
+# `files:` list minus this `exclude:`.
 exclude:
   - .github/CONFIG.md
+  - .github/rulesets/main-branch-protection.json
+  - .github/rulesets/tag-protection.json
 
 profiles:
   - github-project
