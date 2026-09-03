@@ -29,26 +29,28 @@ Repository = "https://github.com/cvxgrp/cvxball"
 [dependency-groups]
 dev = [
     "clarabel>=0.11.1",
-    "cvxpy-base>=1.9.2",
     "scipy>=1.17.1",
     "kaleido==1.3.0",
     "plotly>=6.9.0",
     "marimo>=0.23.15",
     "matplotlib>=3.11.1",
-    "pandas>=3.0.3"
 ]
+# Every entry here is reached by a gate: `--cov` needs pytest-cov, `-n auto`
+# pytest-xdist, `timeout = 60` in pytest.ini pytest-timeout, and
+# tests/test_solver.py imports hypothesis. Note the rhiza test task injects its
+# own copies with `--with`, including pytest-html, which is in no group at all --
+# so this group is what a bare `uv run pytest` and the lowest-direct resolution
+# job see, not what `make test` depends on.
 test = [
     "pytest>=9.1.1",
     "pytest-cov>=6.0",
-    "pytest-mock>=3.0",
     "pytest-xdist>=3.0",
     "pytest-timeout>=2.0",
     "hypothesis>=6.157.2",
 ]
-lint = [
-    "ruff>=0.15.22",
-    "pre-commit>=4.0",
-]
+# No `lint` group. The ruff that runs comes from the ruff-pre-commit hook repo at
+# its own pinned version, and the gates drive it through `uvx prek`; a `ruff` pin
+# here would never execute and could silently disagree with the hook's.
 
 [build-system]
 requires = ["hatchling"]
@@ -58,10 +60,10 @@ build-backend = "hatchling.build"
 packages = ["src/cvxball"]
 
 [tool.deptry]
-package_module_name_map = { "cvxpy-base" = "cvxpy", clarabel = "clarabel", numpy = "numpy", scipy = "scipy", kaleido = "kaleido", mosek = "mosek", plotly = "plotly", marimo = "marimo", matplotlib = "matplotlib", pandas = "pandas" }
+package_module_name_map = { clarabel = "clarabel", numpy = "numpy", scipy = "scipy", kaleido = "kaleido", plotly = "plotly", marimo = "marimo", matplotlib = "matplotlib" }
 
-[tool.deptry.per_rule_ignores]
-DEP002 = ["cvxpy-base"]
+# No per-rule ignores. The DEP002 entry here existed for cvxpy-base, which was
+# declared but never imported anywhere in the repository.
 
 # CI settings. `ci-os-matrix` is the OS list the reusable rhiza CI workflow builds its
 # test matrix from: it shells out to `rhiza-task ci-os-matrix`, and the default is
