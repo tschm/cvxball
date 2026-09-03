@@ -66,8 +66,20 @@ a concave quadratic. Everything below rests on one identity, valid for all
 $y\in\R^d$ and $u\in\Delta_n$:
 \begin{equation}
   \label{eq:id}
-  \sum_i u_i\norm{p_i-y}^2=\varphi(u)+\norm{x(u)-y}^2 .
+  \sum_i u_i\norm{p_i-y}^2
+    \;=\; \sum_i u_i\norm{p_i}^2-2\,x(u)\T y+\norm{y}^2
+    \;=\; \varphi(u)+\norm{x(u)-y}^2 .
 \end{equation}
+Both steps are mechanical. The first expands the square and collects terms,
+using $\sum_iu_ip_i=x(u)$ on the cross term and $\mathbf{1}\T u=1$ on
+$\norm{y}^2$; the second adds and subtracts $\norm{x(u)}^2$, which
+by~\eqref{eq:phi} leaves $\varphi(u)$ beside a completed square. What makes it
+an equality rather than a bound is that no term has been discarded: the weights
+enter only through $x(u)$ and through $\sum_iu_i\norm{p_i}^2$, and $\varphi$ is
+defined as exactly the difference of those two. So this is the parallel-axis
+identity of mechanics, or the bias--variance decomposition: measuring from
+anywhere other than the weighted mean costs precisely $\norm{x(u)-y}^2$,
+whatever the weights, and $\varphi(u)$ is what is left when $y$ is the mean.
 
 \begin{proposition}
   \label{prop:duality}
