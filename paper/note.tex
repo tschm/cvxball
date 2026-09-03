@@ -1,0 +1,311 @@
+% note.tex -- Smallest enclosing balls by an active-set method on the dual.
+% Build:  pdflatex note.tex   (twice)   or   tectonic note.tex
+
+\documentclass[10pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{mathtools}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage[margin=2.4cm]{geometry}
+\usepackage[colorlinks=true,allcolors=blue!50!black]{hyperref}
+
+\theoremstyle{plain}
+\newtheorem{proposition}{Proposition}
+\newtheorem{lemma}[proposition]{Lemma}
+\theoremstyle{remark}
+\newtheorem*{remark}{Remark}
+
+\DeclareMathOperator{\conv}{conv}
+\DeclareMathOperator{\aff}{aff}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\norm}[1]{\lVert #1 \rVert}
+\newcommand{\T}{^{\mathsf{T}}}
+
+\setlength{\parskip}{0pt}
+\title{\vspace{-1.2cm}\bfseries Smallest enclosing balls by an active-set method on the dual}
+\author{Thomas Schmelzer}
+\date{\today}
+
+\begin{document}
+\maketitle
+\vspace{-0.6cm}
+
+\begin{abstract}
+\noindent
+We record the dual quadratic program of the smallest enclosing ball problem, the
+active-set method that solves it, and the invariance properties an
+implementation must preserve. The method terminates at an exact vertex of the
+dual feasible set rather than at an interior-point tolerance, costs one
+$k\times k$ dense solve per iteration with $k\le d$, and returns the dual
+weights, which are the conic dual of the second-order cone formulation after one
+rescaling and hence a certificate the caller can check independently.
+\end{abstract}
+
+\section{The problem and its dual}
+
+For $S=\{p_1,\dots,p_n\}\subset\R^d$ the smallest enclosing ball is the solution of
+\begin{equation}
+  \label{eq:primal}
+  \min_{x,r}\ r \quad\text{s.t.}\quad \norm{p_i-x}\le r,\ i=1,\dots,n,
+\end{equation}
+a second-order cone program in $(r,x)\in\R^{1+d}$ with $n$ blocks
+$(r,\,p_i-x)\in\mathcal{Q}^{d+1}$. Existence follows from coercivity of
+$f(x)=\max_i\norm{p_i-x}$ and uniqueness from strict convexity of $f^2$ along any
+segment; we write $(R,x^\star)$ for the optimum.
+
+Let $\Delta_n=\{u\in\R^n: u\ge0,\ \mathbf{1}\T u=1\}$, and for $u\in\Delta_n$ put
+$x(u)=\sum_i u_ip_i$ and
+\begin{equation}
+  \label{eq:phi}
+  \varphi(u)=\sum_i u_i\norm{p_i}^2-\norm{x(u)}^2 ,
+\end{equation}
+a concave quadratic. Everything below rests on one identity, valid for all
+$y\in\R^d$ and $u\in\Delta_n$:
+\begin{equation}
+  \label{eq:id}
+  \sum_i u_i\norm{p_i-y}^2=\varphi(u)+\norm{x(u)-y}^2 .
+\end{equation}
+
+\begin{proposition}
+  \label{prop:duality}
+  $R^2=\max_{u\in\Delta_n}\varphi(u)$, and $x^\star=x(w)$ for any maximiser $w$.
+\end{proposition}
+
+\begin{proof}
+  If $B(y,r)\supseteq S$ then the left side of~\eqref{eq:id} is at most $r^2$, so
+  $\varphi(u)\le r^2$ for every $u$; taking the optimum gives
+  $\max\varphi\le R^2$. Conversely let $T=\{p_i:\norm{p_i-x^\star}=R\}$. If
+  $x^\star\notin\conv T$, separate: there is $v$ with $v\T(p-x^\star)>0$ on $T$,
+  and $\norm{p-(x^\star+tv)}^2=R^2-2tv\T(p-x^\star)+t^2\norm{v}^2<R^2$ for small
+  $t>0$, while the finitely many points off $T$ stay strictly inside --- so the
+  radius decreases, a contradiction. Hence $x^\star=\sum_i w_ip_i$ for some
+  $w\in\Delta_n$ supported on $T$, and $y=x^\star$ in~\eqref{eq:id} gives
+  $\varphi(w)=\sum_iw_i\norm{p_i-x^\star}^2=R^2$. The same substitution forces
+  $\norm{x(w)-x^\star}^2\le0$ for any maximiser.
+\end{proof}
+
+Since $\partial\varphi/\partial u_i=\norm{p_i-x(u)}^2-\norm{x(u)}^2$, the
+first-order conditions for $\max_{\Delta_n}\varphi$ read, after cancelling the
+common term,
+\begin{equation}
+  \label{eq:kkt}
+  \norm{p_i-x}=R\ \ (w_i>0),\qquad \norm{p_i-x}\le R\ \ (w_i=0),
+\end{equation}
+the geometric certificate: the points carrying weight lie on the boundary sphere
+and the rest are enclosed. By Carath\'eodory the support may be taken of size at
+most $d+1$, so~\eqref{eq:primal} is determined by at most $d+1$ of the $n$ points
+and the problem is combinatorial in the choice of that subset.
+
+\section{The method}
+
+Maintain a working set $F$ and weights $u>0$ on it summing to one.
+
+\paragraph{Subproblem.} Maximising $\varphi$ over weights supported on $F$ with no
+sign restriction is, by~\eqref{eq:kkt} without the inequalities, the requirement
+that $x$ be equidistant from $\{q_j\}_{j\in F}$ and lie in their affine hull.
+With $D$ the $(m-1)\times d$ matrix of edges $e_j=q_j-q_0$ and $x=q_0+D\T y$,
+\begin{equation}
+  \label{eq:sub}
+  (DD\T)\,y=\tfrac12\bigl(\norm{e_1}^2,\dots,\norm{e_{m-1}}^2\bigr)\T,
+  \qquad w=\Bigl(1-\textstyle\sum_j y_j,\ y\Bigr),
+\end{equation}
+a dense system of order $m-1\le d$, non-singular exactly when $F$ is affinely
+independent. This is the circumcentre of the face, expressed in barycentric
+coordinates.
+
+\paragraph{Dropping.} If $\min_j w_j<0$ the circumcentre lies outside
+$\conv\{q_j\}$ and the subproblem solution is dual-infeasible. Move along
+$s=w-u$ by the ratio test
+\begin{equation}
+  \label{eq:ratio}
+  \alpha=\min\{-u_i/s_i:\ s_i<0\},
+\end{equation}
+which drives at least one weight to zero; remove it from $F$.
+
+\paragraph{Degeneracy.} If $F$ is affinely dependent, $DD\T$ is singular. The
+directions $s$ with $\mathbf{1}\T s=0$ and $\sum_i s_iq_i=0$ --- equivalently
+$D\T s_{1:}=0$ after eliminating $s_0$ --- leave $x(u)$ fixed, so
+$\norm{x(u)}^2$ is frozen and $\varphi(u+ts)=\varphi(u)+t\sum_is_i\norm{p_i}^2$
+is linear: the subproblem is unbounded. Project the gradient onto that null space
+and apply~\eqref{eq:ratio}, shrinking $F$ by one.
+
+\paragraph{Adding.} Otherwise accept $u\leftarrow w$, set $x=x(u)$ and
+$R=\max_{i\in F}\norm{p_i-x}$, and let $k=\argmax_i\norm{p_i-x}$. If
+$\norm{p_k-x}\le R$ then~\eqref{eq:kkt} holds and $(R,x,u)$ is optimal; otherwise
+append $k$ to $F$ with weight zero. By~\eqref{eq:gradient-note} below this is
+also the steepest-ascent choice among the fixed variables.
+
+\begin{center}
+\fbox{\begin{minipage}{0.95\textwidth}
+\small
+\textbf{Input} $p_1,\dots,p_n$. Recentre on $\bar p$. Set $F=\{k\}$, $k$ farthest
+from $p_1$; $u_k=1$.\\
+\textbf{Repeat:} if $F$ affinely dependent, take the null-space descent step and
+drop; else solve~\eqref{eq:sub}. If $\min w<0$, take the ratio step~\eqref{eq:ratio}
+and drop. Else set $u=w$, $x=x(u)$, $R=\max_{i\in F}\norm{p_i-x}$; if no point
+exceeds $R$, return $(R,\,x+\bar p,\,u)$; else drop zero weights and append
+$\argmax_i\norm{p_i-x}$ with weight $0$.
+\end{minipage}}
+\end{center}
+
+Each iteration either strictly increases $\varphi$ or strictly shrinks $F$, and
+there are finitely many working sets, so the method is finite; as with any
+active-set method a degenerate zero-length step requires an anti-cycling rule in
+exact arithmetic, and in practice an iteration cap serves as a safety net. Note
+that
+\begin{equation}
+  \label{eq:gradient-note}
+  \partial\varphi/\partial u_k-\partial\varphi/\partial u_i
+    =\norm{p_k-x}^2-\norm{p_i-x}^2,
+\end{equation}
+so the farthest violator is the fixed variable with the largest reduced gradient.
+
+\section{Invariance}
+
+Two properties are load-bearing and easily lost. Both are consequences of
+refusing any tolerance tied to coordinates of magnitude one.
+
+\emph{Origin invariance.} Recentre on $\bar p$ before iterating, and form
+$\norm{p-x}^2$ as $\sum_k(p_k-x_k)^2$ rather than
+$\norm{p}^2-2p\T x+\norm{x}^2$. The expanded form cancels quantities of size
+$\norm{x}^2$ to produce an answer of size $R^2$, losing every digit by which
+$\norm{x}$ exceeds $R$; for a cloud of unit extent at distance $10^6$ the
+rounding floor of a squared distance is then of the order of the radius itself.
+
+\emph{Scale invariance.} Test affine dependence on the rank of $D$, not on
+$[\mathbf{1};Q\T]$: the row of ones has unit entries, dominates the singular
+values, and would declare any cloud of extent below $\varepsilon$ degenerate.
+Size the feasibility slack of the stopping test as a relative tolerance plus an
+absolute floor proportional to $\varepsilon\max_i\norm{p_i}^2$, and normalise the
+null-space direction before comparing anything derived from it --- the gradient
+carries units of length$^2$, the weight tolerance does not.
+
+\section{Cost, and the dual as a certificate}
+
+Per iteration the method performs one $O(nd)$ sweep of squared distances and one
+dense solve of order at most $d$; nothing of size $n$ is ever factorised. This is
+the structural difference from an interior-point method applied
+to~\eqref{eq:primal}, which factors an $n(d+1)$-row system at every step. The
+method also identifies the support combinatorially and solves that face exactly,
+rather than approaching it from the interior and leaving the caller to decide
+which slacks of size $10^{-9}$ were meant to be zero.
+
+The weights are the conic dual of~\eqref{eq:primal} after one rescaling: the
+block for point $i$ is
+\begin{equation}
+  \label{eq:conic-dual}
+  z_i=u_i\Bigl(1,\ -\frac{p_i-x}{R}\Bigr)\in\mathcal{Q}^{d+1},
+\end{equation}
+whose tail has norm $u_i\norm{p_i-x}/R$, equal to its head exactly on the
+support, and which pairs with the slack $s_i=(R,\,p_i-x)$ as
+$s_i\T z_i=(u_i/R)(R^2-\norm{p_i-x}^2)=0$ --- complementarity, each factor
+vanishing where the other does not. So a solver built on this method returns a
+standard-form primal--dual pair, and a caller can verify optimality
+from~\eqref{eq:kkt} at the cost of one pass over the data, without re-solving.
+
+\begin{remark}[Substitutability]
+  This is what makes the method usable behind a conic solver's interface rather
+  than only as a special-purpose routine. The accompanying implementation
+  dispatches on the cone list: zero and non-negative blocks go to a dense dual
+  active-set QP method~\cite{goldfarb1983}, and equally sized second-order blocks
+  matching the shape of~\eqref{eq:primal} go to the method above. A program
+  carrying the right cones but a different matrix is refused rather than
+  answered, which requires reconstructing the point cloud from $(A,b)$ and
+  rebuilding the program for comparison. An indefinite objective is likewise
+  refused rather than regularised into definiteness, since $P+\epsilon I$ answers
+  a different question.
+\end{remark}
+
+\section{A numerical comparison}
+
+Table~\ref{tab:bench} compares the method with Clarabel~0.11.1 applied
+to~\eqref{eq:primal} on Gaussian clouds, measuring the relative enclosure error
+$\max_i\norm{p_i-x}/R-1$ --- positive values mean the returned ball fails to
+contain the cloud. Both agree on $R$ to the digits shown. The active-set figures
+are $0$ or a single ulp, since the returned $R$ is by construction the exact
+maximum distance over the support of a centre computed from~\eqref{eq:sub};
+Clarabel's are its interior-point residuals, four to five orders larger. The
+timing gap grows with $n$ because only the $O(nd)$ sweep depends on it.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{rr rr rr}
+  \toprule
+  & & \multicolumn{2}{c}{enclosure error} & \multicolumn{2}{c}{time (s)} \\
+  \cmidrule(lr){3-4}\cmidrule(lr){5-6}
+  $n$ & $d$ & active set & Clarabel & active set & Clarabel \\
+  \midrule
+  $10^3$ &  2 & $0$                  & $5.3\cdot10^{-12}$ & 0.001 & 0.009 \\
+  $10^3$ & 10 & $0$                  & $9.4\cdot10^{-12}$ & 0.001 & 0.056 \\
+  $10^4$ &  3 & $2.2\cdot10^{-16}$   & $2.0\cdot10^{-12}$ & 0.001 & 0.141 \\
+  $10^4$ & 20 & $-1.1\cdot10^{-16}$  & $3.5\cdot10^{-14}$ & 0.006 & 0.948 \\
+  $10^5$ &  3 & $-2.2\cdot10^{-16}$  & $1.7\cdot10^{-11}$ & 0.008 & 2.225 \\
+  $10^5$ & 10 & $0$                  & $-7.2\cdot10^{-12}$ & 0.014 & 6.595 \\
+  \bottomrule
+\end{tabular}
+\caption{Standard normal clouds, one seed per row; Apple M4 Pro, CPython 3.12.13,
+NumPy 2.5.1, Clarabel 0.11.1 at its default tolerances. Times are a single run
+and are indicative only; the enclosure errors are not, being deterministic
+properties of the returned pair.}
+\label{tab:bench}
+\end{table}
+
+The comparison is not entirely fair to Clarabel, which is built for large sparse
+programs of arbitrary shape and is here being asked for a dense problem of one
+particular shape whose combinatorial structure the other method exploits. That
+is the point: the specialised method is worth keeping precisely where the
+structure is known.
+
+\section{Relation to the minimum-norm point problem}
+
+If all points have equal norm $\rho$ --- for instance after the standard lift of
+a kernel problem onto a sphere --- then~\eqref{eq:phi} reduces to
+$\varphi(u)=\rho^2-\norm{x(u)}^2$, so maximising $\varphi$ over $\Delta_n$ is
+minimising $\norm{x}$ over $\conv S$: the minimum-norm point problem solved by
+Wolfe's algorithm and by the Frank--Wolfe family. The working set of
+Section~2 is then Wolfe's corral, the subproblem~\eqref{eq:sub} is his affine
+minimiser, and the drop step is his major cycle. The general case is the same
+algorithm with the linear term $\sum_iu_i\norm{p_i}^2$ restored, which is what
+makes the subproblem a circumcentre rather than a projection.
+
+\section{Notes}
+
+The problem is Sylvester's~\cite{sylvester1857}; Elzinga and
+Hearn~\cite{elzinga1972} gave an early finite algorithm of this type.
+Welzl's randomised incremental method~\cite{welzl1991} is expected $O(n)$ for
+fixed $d$ but degrades in $d$; G\"artner~\cite{gaertner1999} made it robust, and
+Fischer, G\"artner and Kutz~\cite{fischer2003} developed the support-set
+framework the method above belongs to, including the balls-of-balls
+generalisation. The QP machinery is standard~\cite{nocedal2006}. An
+implementation of the method, of the Goldfarb--Idnani core, and of the conic
+front end is available at \url{https://github.com/tschm/cvxball}.
+
+\begin{thebibliography}{9}
+\small
+\bibitem{elzinga1972} J.~Elzinga and D.~W.~Hearn. Geometrical solutions for some
+  minimax location problems. \emph{Transportation Science} 6(4):379--394, 1972.
+\bibitem{fischer2003} K.~Fischer, B.~G\"artner and M.~Kutz. Fast
+  smallest-enclosing-ball computation in high dimensions. \emph{Proc.\ ESA},
+  630--641, 2003.
+\bibitem{gaertner1999} B.~G\"artner. Fast and robust smallest enclosing balls.
+  \emph{Proc.\ ESA}, 325--338, 1999.
+\bibitem{goldfarb1983} D.~Goldfarb and A.~Idnani. A numerically stable dual
+  method for solving strictly convex quadratic programs. \emph{Mathematical
+  Programming} 27:1--33, 1983.
+\bibitem{nocedal2006} J.~Nocedal and S.~J.~Wright. \emph{Numerical
+  Optimization}, 2nd ed. Springer, 2006.
+\bibitem{sylvester1857} J.~J.~Sylvester. A question in the geometry of
+  situation. \emph{Quarterly Journal of Pure and Applied Mathematics} 1:79, 1857.
+\bibitem{frank1956} M.~Frank and P.~Wolfe. An algorithm for quadratic
+  programming. \emph{Naval Research Logistics Quarterly} 3:95--110, 1956.
+\bibitem{welzl1991} E.~Welzl. Smallest enclosing disks (balls and ellipsoids).
+  \emph{New Results and New Trends in Computer Science}, LNCS 555, 359--370, 1991.
+\bibitem{wolfe1976} P.~Wolfe. Finding the nearest point in a polytope.
+  \emph{Mathematical Programming} 11:128--149, 1976.
+\end{thebibliography}
+
+\end{document}
