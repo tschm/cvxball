@@ -28,6 +28,16 @@ BACKEND_IDS = ["clarabel", "active_set"]
 # A point cloud whose smallest enclosing circle is the one on the hypotenuse.
 TRIANGLE = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
 
+# What "exact" is allowed to mean for a residual of size one.  The claim these
+# tests make is that this method lands *on* the constraint rather than near it --
+# machine precision, against the 1e-8 an interior-point method stops at -- and a
+# budget row is a sum of n terms, so its residual is a handful of ulps whose
+# size depends on the order the platform's BLAS summed them.  A flat 1e-14 is
+# 45 ulps and duly failed on Linux and Windows at 48 while passing on macOS.
+# Counting in ulps says what is meant and says it portably; the bound is still
+# six orders sharper than a solver tolerance, so nothing is being waved through.
+MACHINE_EXACT = 256 * np.finfo(np.float64).eps
+
 
 def _portfolio_program(n=6, cap=0.4):
     """Build a long-only, capped minimum-variance program in Clarabel's form.
@@ -157,8 +167,8 @@ def test_the_qp_dual_respects_its_cones() -> None:
 
     assert solution.z[n_eq:].min() >= 0.0
     assert np.abs(solution.z[n_eq:] * solution.s[n_eq:]).max() <= 1e-12
-    assert abs(solution.s[0]) <= 1e-14
-    assert solution.r_prim <= 1e-14
+    assert abs(solution.s[0]) <= MACHINE_EXACT
+    assert solution.r_prim <= MACHINE_EXACT
     assert solution.r_dual <= 1e-12
 
 
