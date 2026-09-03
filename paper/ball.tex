@@ -671,14 +671,17 @@ and produce plausible-looking wrong answers rather than crashes.
 \section{Using the code}
 \label{sec:code}
 
-These notes accompany \texttt{cvxball}, which implements both routes: the
-second-order cone program of Section~\ref{sec:convex} handed to a conic solver,
-and the active-set method of Section~\ref{sec:algorithm} in pure NumPy. They share
-one interface, so they are interchangeable and can be tested against each other.
+These notes accompany \texttt{cvxball}, which ships the active-set method of
+Section~\ref{sec:algorithm} and nothing else: NumPy is its only dependency. The
+second-order cone program of Section~\ref{sec:convex} is implemented too, but
+under \texttt{experiments/}, where it is what it has in fact become --- the
+reference the shipped method is measured against, sharing its interface so the
+two can be tested against each other.
 
 \begin{lstlisting}
 import numpy as np
-from cvxball import min_circle_active_set, min_circle_clarabel
+from cvxball import min_circle_active_set
+from experiments.clarabel_ball import min_circle_clarabel   # reference
 
 points = np.array([[0.0, 0.0], [4.0, 0.0], [1.0, 1.0]])
 
@@ -697,7 +700,8 @@ The correspondence with the text is direct:
   Affine-dependence test and null space  & \texttt{\_affine\_null\_space} \\
   Squared distances, differenced         & \texttt{\_sq\_dist} \\
   The main loop                          & \texttt{min\_circle\_active\_set} \\
-  The cone program of \S\ref{sec:convex} & \texttt{\_build\_soc\_program} \\
+  The cone program of \S\ref{sec:convex} & \texttt{experiments/clarabel\_ball.py} \\
+  Welzl's algorithm, for comparison      & \texttt{experiments/welzl.py} \\
   Conic front end, \S\ref{sec:frontend} & \texttt{cvxball.active\_set.DefaultSolver} \\
   Goldfarb--Idnani QP, \S\ref{sec:gi}   & \texttt{cvxball.qp.solve\_qp} \\
   \bottomrule

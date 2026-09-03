@@ -341,21 +341,21 @@ name = "cvxball"
 version = "1.0.2"
 source = { editable = "." }
 dependencies = [
-    { name = "clarabel" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
 
 [package.dev-dependencies]
 dev = [
+    { name = "clarabel" },
     { name = "cvxpy-base" },
     { name = "kaleido" },
     { name = "marimo" },
     { name = "matplotlib" },
     { name = "pandas" },
     { name = "plotly" },
+    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
 lint = [
     { name = "pre-commit" },
@@ -371,20 +371,18 @@ test = [
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "clarabel", specifier = ">=0.11.1" },
-    { name = "numpy", specifier = ">=2.4.6" },
-    { name = "scipy", specifier = ">=1.17.1" },
-]
+requires-dist = [{ name = "numpy", specifier = ">=2.4.6" }]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "clarabel", specifier = ">=0.11.1" },
     { name = "cvxpy-base", specifier = ">=1.9.2" },
     { name = "kaleido", specifier = "==1.3.0" },
     { name = "marimo", specifier = ">=0.23.15" },
     { name = "matplotlib", specifier = ">=3.11.1" },
     { name = "pandas", specifier = ">=3.0.3" },
     { name = "plotly", specifier = ">=6.9.0" },
+    { name = "scipy", specifier = ">=1.17.1" },
 ]
 lint = [
     { name = "pre-commit", specifier = ">=4.0" },
