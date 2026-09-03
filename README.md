@@ -52,6 +52,86 @@ three orders of magnitude faster here. The cone program, in exchange, is the
 more familiar formulation and the one to reach for if you want to extend the
 model with further conic constraints.
 
+## 🧰 A Clarabel-shaped active-set solver
+
+`cvxball.active_set` is a solver front end that can be *substituted* for the
+`clarabel` module. Code written against Clarabel's Python API keeps working when
+the import changes:
+
+```python
+import numpy as np
+import scipy.sparse as sp
+from cvxball import active_set as backend  # or: import clarabel as backend
+
+# minimum-variance, fully invested, long-only
+covariance = sp.csc_matrix(np.array([[0.04, 0.01], [0.01, 0.04]]))
+a_mat = sp.csc_matrix(np.vstack([np.ones((1, 2)), -np.eye(2)]))
+b = np.array([1.0, 0.0, 0.0])
+cones = [backend.ZeroConeT(1), backend.NonnegativeConeT(2)]
+
+settings = backend.DefaultSettings.default()
+settings.verbose = False
+solver = backend.DefaultSolver(covariance, np.zeros(2), a_mat, b, cones, settings)
+solution = solver.solve()  # solution.x, .z, .s, .status, .obj_val, ...
+```
+
+The same standard form — minimise $\tfrac12 x'Px + q'x$ subject to
+$Ax + s = b$, $s \in \mathcal{K}$ — the same solution attributes, and the same
+`clarabel.SolverStatus` values, which are re-exported so that
+`solution.status == clarabel.SolverStatus.Solved` holds either way.
+
+### What it handles
+
+| Cones | Method |
+|---|---|
+| `ZeroConeT` and `NonnegativeConeT` blocks, in any order | `cvxball.qp.solve_qp`, a dense dual active-set method for the resulting equality- and inequality-constrained QP (Goldfarb–Idnani, 1983) |
+| Equally sized `SecondOrderConeT` blocks in the enclosing-ball shape | the support-set method above |
+| anything else | refused at construction, with a message naming what it saw |
+
+`P` must be positive definite, or made so by Clarabel's own
+`static_regularization_*` settings; an *indefinite* `P` is refused rather than
+quietly convexified. Of the remaining settings, `verbose` and `tol_feas` are
+read and the interior-point controls are ignored on purpose — `max_iter` counts
+a different kind of iteration, and `tol_gap_*` describe a duality gap this
+method closes exactly rather than approaches.
+
+### Why bother, when Clarabel is right there
+
+Not for speed. Clarabel is compiled, this is NumPy, and a pivot loop in Python
+pays ~10–20 µs per pivot; on a capped long-only portfolio of $n$ names it needs
+roughly one pivot per binding bound, so it loses by an order of magnitude:
+
+| $n$ | active-set | Clarabel | pivots |
+|---:|---:|---:|---:|
+| 10 | 0.18 ms | 0.05 ms | 2 |
+| 20 | 0.60 ms | 0.12 ms | 12 |
+| 50 | 4.7 ms | 0.61 ms | 74 |
+| 100 | 24 ms | 2.8 ms | 223 |
+| 200 | 167 ms | 8.9 ms | 480 |
+
+What it offers instead is a different *kind* of answer. An interior-point method
+approaches the optimal face from inside and leaves you to decide which near-zero
+slacks were meant to be zero; an active-set method returns that face. So:
+
+- **The active set is exact.** Which names sit on their cap, and which
+  constraints bind, is a discrete answer, returned as one — no thresholding.
+- **The solution on that face is a linear solve, not a limit.** The residuals
+  come back at `1e-16` rather than at `1e-8`; on the enclosing-ball program the
+  radius is exact to the last bit, where Clarabel is out by `~1e-9`.
+- **The multipliers are shadow prices of the same quality**, which matters when
+  they are what you are actually after.
+- **Infeasibility is proved, not inferred** from a residual that stopped
+  improving: the method finds a constraint whose multiplier can be raised
+  without bound and says which row it was.
+
+The two natural next steps, neither implemented: incremental factorisation
+updates (the Goldfarb–Idnani QR updates, turning $O(nk^2 + k^3)$ per pivot into
+$O(n^2)$), and **warm starts** — re-solving from a previous active set, which is
+where an active-set method structurally beats an interior-point one and which
+finance asks for constantly (a frontier sweep, a daily rebalance, a parametric
+study). The tables above measure the cost of finding the active set from
+scratch; a warm start skips almost all of it.
+
 ## 🧮 Background
 
 We are solving the convex optimization problem:

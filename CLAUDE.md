@@ -16,6 +16,39 @@ interchangeable and the test suite parametrises the shared cases over both:
   Pure NumPy. It terminates at an exact vertex rather than an interior-point
   tolerance, and scales far better in the number of points.
 
+Since then the package has grown a second, more general front end.
+`src/cvxball/active_set.py` exposes `DefaultSolver(P, q, A, b, cones, settings)`
+and `.solve()` — Clarabel's own constructor and method, with Clarabel's standard
+form, solution attributes and `SolverStatus` values (re-exported from it) — so it
+can be *substituted* for the `clarabel` module. It dispatches on the cones:
+`ZeroConeT`/`NonnegativeConeT` blocks go to `src/cvxball/qp.py`, a dense dual
+active-set method for convex QPs (Goldfarb–Idnani), and equally sized
+`SecondOrderConeT` blocks in the enclosing-ball shape go to the support-set
+method in `solver.py`; anything else is refused at construction. The QP core
+needs `P` positive definite, or made so by the `static_regularization_*`
+settings, and refuses an indefinite `P` outright — regularising until an
+indefinite matrix factorises would answer a convexified question instead.
+
+Three seams there are worth knowing before changing anything:
+
+- `_ball_points` rebuilds the ball program from the recovered points with
+  `_build_soc_program` and compares, rather than trusting the shape of the cone
+  list. A program with the right cones but a different matrix must be refused,
+  not answered.
+- `solver._active_set_ball` is the support-set method with nothing discarded (the
+  dual weights and the pivot count as well as the radius and centre);
+  `min_circle_active_set` is a two-line wrapper over it. The weights *are* the
+  conic dual, arranged as `z_i = u_i (1, -(p_i - x)/R)` per cone block, which is
+  what lets the front end return a certificate rather than just a primal.
+- `solver._ActiveSetError` carries a `status` name alongside the message. The
+  public function lets it propagate as the `ValueError` its callers always saw;
+  the front end catches it and reports `MaxIterations`/`NumericalError`, because
+  the same event has to be an exception in one API and a status in the other.
+
+`qp.solve_qp` is the only block near the cyclomatic-complexity ceiling (`make
+complexity`, ceiling 15) — it sat at 17 before the direction, candidate-selection
+and starting-point helpers were extracted, so keep new branches out of its loop.
+
 Two properties of the active-set code are load-bearing and easy to break:
 it is **scale-invariant** (no tolerance is tied to coordinates of magnitude 1 —
 the affine-rank test runs on edge vectors, the feasibility slack is sized off the
@@ -38,8 +71,9 @@ Rhiza (then re-sync).
 ### Locally owned (change these here)
 
 - `src/cvxball/` — the library source.
-- `tests/test_solver.py` — the project's own test suite. Note `tests/` is *not*
-  wholly local: `tests/test_rhiza_packaging.py` is synced.
+- `tests/test_solver.py`, `tests/test_qp.py`, `tests/test_active_set.py` — the
+  project's own test suite. Note `tests/` is *not* wholly local:
+  `tests/test_rhiza_packaging.py` is synced.
 - `pyproject.toml` — project metadata, dependencies, and local tool config
   (`[tool.deptry]`, `[[tool.mypy.overrides]]`, `[tool.rhiza-task]`,
   `[tool.bumpversion]`).

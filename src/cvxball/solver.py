@@ -12,7 +12,7 @@ Two solvers, one interface — both take ``(points, verbose=False)`` and return
   interior-point tolerance.
 """
 
-from typing import Any
+from typing import Any, NamedTuple
 
 import clarabel
 import numpy as np
@@ -307,6 +307,45 @@ def _face_weights(face: np.ndarray) -> np.ndarray:
     return np.concatenate(([1.0 - float(y.sum())], y))
 
 
+class _ActiveSetError(ValueError):
+    """A run of the active-set method that ended without an optimality certificate.
+
+    It derives from ``ValueError`` so that :func:`min_circle_active_set` can simply
+    let it propagate -- its callers keep seeing the message they always saw -- while
+    the ``status`` it carries lets :mod:`cvxball.active_set` report a Clarabel-shaped
+    solver status instead of raising.  The two audiences want opposite things from
+    the same event, and this is the seam between them.
+    """
+
+    def __init__(self, message: str, status: str) -> None:
+        """Store a Clarabel-shaped ``status`` alongside the usual message.
+
+        Args:
+            message: The human-readable explanation, as for any ``ValueError``.
+            status: The name of the :class:`clarabel.SolverStatus` member this
+                    failure corresponds to, e.g. ``"MaxIterations"``.
+        """
+        super().__init__(message)
+        self.status = status
+
+
+class _BallSolution(NamedTuple):
+    """Everything one run of the active-set method knows about its answer.
+
+    ``radius`` and ``centre`` are what :func:`min_circle_active_set` returns; the
+    other two fields are what that pair throws away.  ``weights`` are the dual
+    variables -- non-zero exactly on the support set, summing to one, and the
+    certificate of optimality via ``centre == weights @ points`` -- and are what a
+    conic front end needs to report a dual solution.  ``iterations`` is the number
+    of pivots the run took.
+    """
+
+    radius: float
+    centre: np.ndarray
+    weights: np.ndarray
+    iterations: int
+
+
 def min_circle_active_set(points: np.ndarray, verbose: bool = False) -> tuple[float, np.ndarray]:
     """Compute the smallest enclosing circle with an active-set method.
 
@@ -358,6 +397,29 @@ def min_circle_active_set(points: np.ndarray, verbose: bool = False) -> tuple[fl
         True
         >>> center
         array([0.5, 0.5])
+    """
+    solution = _active_set_ball(points, verbose)
+    return solution.radius, solution.centre
+
+
+def _active_set_ball(points: np.ndarray, verbose: bool = False) -> _BallSolution:
+    """Run the active-set method and report the dual weights along with the ball.
+
+    The algorithm is described in :func:`min_circle_active_set`, whose docstring is
+    the reference for it; this is the same run with nothing discarded.
+
+    Args:
+        points: A numpy array of shape ``(n, d)``.
+        verbose: If ``True``, print the support size and radius per iteration.
+
+    Returns:
+        The :class:`_BallSolution` for ``points``.
+
+    Raises:
+        ValueError: If ``points`` is not a finite, non-empty ``(n, d)`` array.
+        _ActiveSetError: If the run ends without the optimality certificate --
+                           either the iteration budget is exhausted or a step
+                           finds nothing to block it.
     """
     pts = _validate(points)
     n = pts.shape[0]
@@ -419,7 +481,11 @@ def min_circle_active_set(points: np.ndarray, verbose: bool = False) -> tuple[fl
 
                 worst = int(np.argmax(dist_sq))
                 if dist_sq[worst] <= radius_sq * (1.0 + _FEAS_RTOL) + noise_floor:
-                    return radius, centre + shift
+                    # Scatter the support weights back over all n points: zero off the
+                    # support is exactly the complementarity the dual solution needs.
+                    dual = np.zeros(n)
+                    dual[free] = weights
+                    return _BallSolution(radius, centre + shift, dual, iteration + 1)
 
                 keep = weights > _DROP_TOL
                 free = np.append(free[keep], worst)
@@ -437,7 +503,7 @@ def min_circle_active_set(points: np.ndarray, verbose: bool = False) -> tuple[fl
         if not np.isfinite(alpha):
             # Nothing blocks the step, so the support cannot shrink.  Unreachable in
             # exact arithmetic; bail out rather than propagate a non-finite weight.
-            raise ValueError("active-set method stalled: no support point blocks the step")  # noqa: TRY003
+            raise _ActiveSetError("active-set method stalled: no support point blocks the step", "NumericalError")  # noqa: TRY003
         weights = np.maximum(weights + alpha * step, 0.0)
 
         keep = weights > _DROP_TOL
@@ -446,4 +512,4 @@ def min_circle_active_set(points: np.ndarray, verbose: bool = False) -> tuple[fl
         if verbose:
             print(f"[{iteration:4d}] support={free.size:3d} drop step={alpha:.6g}")
 
-    raise ValueError(f"active-set method did not converge in {iteration_limit} iterations")  # noqa: TRY003
+    raise _ActiveSetError(f"active-set method did not converge in {iteration_limit} iterations", "MaxIterations")  # noqa: TRY003
