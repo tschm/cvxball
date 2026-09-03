@@ -8,7 +8,7 @@
 \usepackage{mathtools}
 \usepackage{booktabs}
 \usepackage{xcolor}
-\usepackage[margin=2.2cm]{geometry}
+\usepackage[margin=2.1cm]{geometry}
 \usepackage[colorlinks=true,allcolors=blue!50!black]{hyperref}
 
 \theoremstyle{plain}
@@ -154,7 +154,9 @@ $\argmax_i\norm{p_i-x}$ with weight $0$.
 Each iteration either strictly increases $\varphi$ or strictly shrinks $F$, and
 there are finitely many working sets, so the method is finite; as with any
 active-set method a degenerate zero-length step requires an anti-cycling rule in
-exact arithmetic, and in practice an iteration cap serves as a safety net. Note
+exact arithmetic --- for this problem, a Bland-type order on the points, which
+Fischer, G\"artner and Kutz~\cite{fischer2003} prove terminating and then reject
+as too slow. In practice an iteration cap serves as a safety net. Note
 that
 \begin{equation}
   \label{eq:gradient-note}
@@ -345,23 +347,25 @@ basis; the method above yields the barycentric weights as well, which are what
 make~\eqref{eq:kkt} checkable in one pass and what become~\eqref{eq:conic-dual}
 when a conic interface asks for a dual. The weights can be recovered from a basis
 by solving~\eqref{eq:sub}, but they are not a by-product of the search there,
-whereas here they \emph{are} the search --- an asymmetry that also makes a
-support set a natural warm start for a perturbed cloud, which a recursion over a
-fresh random permutation has no way to accept.
+whereas here they \emph{are} the search --- which is also why a support set warm
+starts a perturbed cloud and a fresh random permutation cannot.
 
-G\"artner's robust implementation~\cite{gaertner1999} addresses the numerical
-fragility of the recursion's predicates and should be read alongside the
-original; the invariance requirements of Section~3 are this method's answer to
-the same question.
+G\"artner's robust implementation~\cite{gaertner1999} addresses the fragility of
+the recursion's predicates; Section~3 answers the same question here.
 
 \section{Notes}
 
 The problem is Sylvester's~\cite{sylvester1857}; Elzinga and
 Hearn~\cite{elzinga1972} gave an early finite algorithm of this type, and
-Section~7 places it against the randomised incremental line of work. The
-support-set framework of~\cite{fischer2003} also covers the smallest ball
-enclosing a set of \emph{balls}; the method above is stated and implemented here
-for points only. The QP machinery is standard~\cite{nocedal2006}. An
+Section~7 places it against the randomised incremental line of work. Two further
+lines should not be conflated: this method is of the quadratic-programming one,
+after G\"artner and Sch\"onherr~\cite{gaertner2000}, its state the weight vector
+and its every pivot an exact solve of the face, whereas Fischer, G\"artner and
+Kutz~\cite{fischer2003} \emph{walk} the centre towards the circumcentre and stop
+wherever a new point catches it, so their iterate is in general not a
+circumcentre. Their reservation that a QP formulation needed exact arithmetic
+past a few hundred dimensions is one this note cannot dispute, its measurements
+stopping at $d=20$. The QP machinery is standard~\cite{nocedal2006}. An
 implementation of the method, of the Goldfarb--Idnani core, and of the conic
 front end is available at \url{https://github.com/tschm/cvxball}.
 
@@ -376,6 +380,9 @@ front end is available at \url{https://github.com/tschm/cvxball}.
   630--641, 2003.
 \bibitem{gaertner1999} B.~G\"artner. Fast and robust smallest enclosing balls.
   \emph{Proc.\ ESA}, 325--338, 1999.
+\bibitem{gaertner2000} B.~G\"artner and S.~Sch\"onherr. An efficient, exact,
+  and generic quadratic programming solver for geometric optimization.
+  \emph{Proc.\ 16th Annu.\ ACM Sympos.\ Comput.\ Geom.}, 110--118, 2000.
 \bibitem{goldfarb1983} D.~Goldfarb and A.~Idnani. A numerically stable dual
   method for solving strictly convex quadratic programs. \emph{Mathematical
   Programming} 27:1--33, 1983.

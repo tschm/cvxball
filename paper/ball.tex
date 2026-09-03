@@ -958,10 +958,22 @@ The problem is old: Sylvester posed the planar case in 1857~\cite{sylvester1857}
 Elzinga and Hearn~\cite{elzinga1972} gave an early finite algorithm of the type
 developed here. Welzl's randomised incremental algorithm~\cite{welzl1991} runs in
 expected $O(n)$ time for fixed $d$ and is beautifully short, though its recursion
-degrades as $d$ grows. G\"artner~\cite{gaertner1999} made it robust, and
-Fischer, G\"artner and Kutz~\cite{fischer2003} gave the combinatorial
-``smallest enclosing ball of balls'' framework that the method of
-Section~\ref{sec:algorithm} belongs to.
+degrades as $d$ grows. G\"artner~\cite{gaertner1999} made it robust.
+
+From there the subject forks, and it is worth being clear about which branch this
+is. The method of Section~\ref{sec:algorithm} is of the quadratic-programming
+line --- G\"artner and Sch\"onherr~\cite{gaertner2000} --- whose state is the
+weight vector of Section~\ref{sec:convex} and whose every pivot solves the face
+exactly. Fischer, G\"artner and Kutz~\cite{fischer2003} take the other branch:
+they keep a pair (support set, centre) and \emph{walk} the centre towards the
+circumcentre, stopping the moment a new point catches the shrinking sphere, so
+their iterate is in general not a circumcentre at all. They also supply what
+Section~\ref{sec:algorithm} only gestured at --- an explicit Bland-type order on
+the points, with a proof that it terminates --- and then note that it is too slow
+to use in practice. Their reservation about QP formulations, that robustness past
+a few hundred dimensions demanded exact arithmetic, is worth carrying alongside
+Section~\ref{sec:numerics}: the invariances there are an answer to that concern,
+not evidence against it.
 
 The active-set machinery --- working sets, ratio tests, dropping constraints ---
 is standard quadratic programming; Goldfarb and Idnani~\cite{goldfarb1983} is the
@@ -997,6 +1009,13 @@ enough to hold in your head and rich enough to contain all four.
   B.~G\"artner.
   Fast and robust smallest enclosing balls.
   In \emph{Proc.\ 7th European Symposium on Algorithms (ESA)}, 325--338, 1999.
+
+\bibitem{gaertner2000}
+  B.~G\"artner and S.~Sch\"onherr.
+  An efficient, exact, and generic quadratic programming solver for geometric
+  optimization.
+  In \emph{Proc.\ 16th Annual ACM Symposium on Computational Geometry},
+  110--118, 2000.
 
 \bibitem{goldfarb1983}
   D.~Goldfarb and A.~Idnani.
