@@ -10,30 +10,19 @@ We compute the smallest enclosing circle/ball for a set of points.
 
 ```python
 import numpy as np
-from cvxball import min_circle_clarabel
+from cvxball import min_circle_active_set
 
 # create a numpy array where each row corresponds to a point
 points = np.array([[2.0, 4.0], [0, 0], [2.5, 2.0]])
 
 # compute the smallest enclosing circle
-radius, centre = min_circle_clarabel(points)
+radius, centre = min_circle_active_set(points)
 ```
 
-### 🔧 The solvers
+### 🔧 The solver
 
-Two solvers share one interface — both take `(points, verbose=False)` and
-return `(radius, center)` — so they are interchangeable:
-
-| Solver | Approach |
-|---|---|
-| **`min_circle_clarabel`** | Assembles the second-order cone program directly and calls [Clarabel](https://clarabel.org), with no modelling-layer canonicalisation in between. |
-| **`min_circle_active_set`** | Runs an active-set QP method on the *dual* of the same problem. Pure NumPy, no solver dependency. |
-
-```python
-from cvxball.solver import min_circle_active_set
-
-radius, centre = min_circle_active_set(points)  # same call, same result
-```
+One solver, taking `(points, verbose=False)` and returning `(radius, center)`.
+**NumPy is the only dependency** — installing `cvxball` pulls in nothing else.
 
 The active-set method keeps a *support set* of points held on the ball's
 boundary and repeatedly re-centres the ball on that set, dropping a support
@@ -47,10 +36,26 @@ interior-point tolerance, so on inputs where the answer is determined exactly �
 points already lying on a common sphere, say — it returns the radius to machine
 precision where an interior-point solver lands within its own tolerance. And
 because it touches all $n$ points only to find the next farthest one, it scales
-much better in $n$: on $20\,000$ points in $\mathbb{R}^{10}$ it is roughly
-three orders of magnitude faster here. The cone program, in exchange, is the
-more familiar formulation and the one to reach for if you want to extend the
-model with further conic constraints.
+well in $n$: on $10^5$ points in $\mathbb{R}^{10}$ it takes about 15 ms here,
+against 7 s for the same problem handed to an interior-point cone solver.
+
+### 📐 Reference implementations
+
+Two other routes to the same answer live in [`experiments/`](experiments/),
+where they are what they have become — the references this solver is measured
+against, not alternative ways to get an answer:
+
+| Module | Approach |
+|---|---|
+| `experiments/clarabel_ball.py` | Assembles the second-order cone program directly and calls [Clarabel](https://clarabel.org), with no modelling-layer canonicalisation in between. |
+| `experiments/welzl.py` | Welzl's randomised incremental algorithm, recursing on the boundary set. |
+
+Both are exercised by the test suite, which checks that all three agree, and by
+`experiments/bench_seb.py`, which produces the tables in
+[`paper/note.tex`](paper/note.tex). Neither is installed with the package, and
+`clarabel` and `scipy` are development dependencies. The cone program is still
+the more familiar formulation and the one to start from if you want to extend
+the model with further conic constraints.
 
 ## 🧮 Background
 

@@ -10,10 +10,16 @@ from hypothesis.extra.numpy import arrays
 from scipy.optimize import linprog
 
 import cvxball.solver as solver_module
-from cvxball.solver import min_circle_active_set, min_circle_clarabel
+from cvxball.solver import min_circle_active_set
 
-# Every solver in the package shares one interface, so the shared expectations below
-# run against each of them.
+# The Clarabel route is not part of the package any more -- it lives in
+# `experiments/` and clarabel is a development dependency. It is still imported
+# here, because an independent second implementation of the same problem is the
+# strongest check the shipped one has, and the point of moving it was to stop
+# shipping it, not to stop testing against it.
+from experiments.clarabel_ball import min_circle_clarabel
+
+# Both routes share one interface, so the shared expectations below run against each.
 SOLVERS = [min_circle_clarabel, min_circle_active_set]
 SOLVER_IDS = ["clarabel", "active_set"]
 

@@ -5,16 +5,33 @@ Guidance for Claude Code (and humans) working in this repository.
 ## What this project is
 
 `cvxball` computes the smallest enclosing sphere (minimum enclosing ball) of a
-set of points. The library lives in `src/cvxball/` and exposes two solvers that
-share one interface — `(points, verbose=False) -> (radius, center)`, so they are
-interchangeable and the test suite parametrises the shared cases over both:
+set of points. The library lives in `src/cvxball/` and ships exactly one solver:
 
-- `min_circle_clarabel` — assembles the second-order-cone program directly and
-  calls Clarabel, with no modelling-layer canonicalisation in between.
 - `min_circle_active_set` — an active-set QP method on the dual (a QP over the
   unit simplex), maintaining the support set of points on the ball's boundary.
   Pure NumPy. It terminates at an exact vertex rather than an interior-point
   tolerance, and scales far better in the number of points.
+
+**NumPy is the only runtime dependency**, and that is a constraint to preserve,
+not an accident: `clarabel` and `scipy` are in the `dev` group, so anything added
+to `src/cvxball/` that imports either of them breaks the promise that installing
+this package pulls in NumPy and nothing else. `make deps` (deptry over `src`)
+catches it.
+
+Two *reference* implementations of the same problem live in `experiments/`,
+which is not installed with the package:
+
+- `experiments/clarabel_ball.py` — the second-order-cone program assembled by
+  hand and handed to Clarabel. This used to be `min_circle_clarabel` in
+  `cvxball.solver`; it moved when clarabel became dev-only.
+- `experiments/welzl.py` — Welzl's randomised incremental algorithm, recursing on
+  the boundary set so recursion depth stays at `d + 2`.
+
+Both exist to be compared against, and `tests/test_solver.py` imports the
+Clarabel one so CI keeps checking that two independent implementations agree —
+that import is why a root `conftest.py` exists (`pytest.ini` is template-owned
+and carries no `pythonpath`). `experiments/bench_seb.py` produces the tables in
+`paper/note.tex`.
 
 Two properties of the active-set code are load-bearing and easy to break:
 it is **scale-invariant** (no tolerance is tied to coordinates of magnitude 1 —
@@ -40,9 +57,16 @@ Rhiza (then re-sync).
 - `src/cvxball/` — the library source.
 - `tests/test_solver.py` — the project's own test suite. Note `tests/` is *not*
   wholly local: `tests/test_rhiza_packaging.py` is synced.
+- `conftest.py` — puts the repo root on `sys.path` so the suite can import
+  `experiments/`. Not template-owned, and the only place this can live: the
+  usual `pythonpath = .` would go in the template-owned `pytest.ini`.
+- `experiments/` — reference implementations and benchmarks. Outside `packages`
+  and `testpaths`, so the coverage, docstring and type gates do not reach it;
+  `ruff` and `ruff-format` do.
+- `paper/` — `ball.tex` (the long form) and `note.tex` (four pages, with the
+  benchmark tables). Both build with `pdflatex <file>.tex` run twice.
 - `pyproject.toml` — project metadata, dependencies, and local tool config
-  (`[tool.deptry]`, `[[tool.mypy.overrides]]`, `[tool.rhiza-task]`,
-  `[tool.bumpversion]`).
+  (`[tool.deptry]`, `[tool.rhiza-task]`, `[tool.bumpversion]`).
 - `README.md` and any project-specific documentation.
 - `.github/workflows/release.yml` and `.github/workflows/audit.yml` — the repo's
   own workflows. Everything else under `.github/workflows/` is synced, so these
@@ -95,8 +119,11 @@ its own in `.github/workflows/audit.yml`:
 - `security` is bandit alone, so nothing in the rhiza gates scans dependencies
   for advisories — the `dependency-advisories` job runs `pip-audit` over
   `uv.lock`.
-- `typecheck` is `ty` alone, so `[[tool.mypy.overrides]]` would otherwise be dead
-  config — the `strict-types` job runs `mypy --strict src`.
+- `typecheck` is `ty` alone — the `strict-types` job runs `mypy --strict src`.
+  There is no longer a `[[tool.mypy.overrides]]` block: it existed to silence
+  `import-untyped` for `clarabel` and `scipy`, and `src` imports neither since
+  the cone program moved to `experiments/`. Re-add it if anything under `src`
+  ever imports an untyped package again.
 
 There is no `make validate`, and `make deptry` is gone (the target is `deps`).
 Template drift is caught by the `check-managed-files` pre-commit hook instead.

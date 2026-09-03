@@ -28,7 +28,8 @@ from collections.abc import Callable
 
 import numpy as np
 
-from cvxball import min_circle_active_set, min_circle_clarabel
+from cvxball import min_circle_active_set
+from experiments.clarabel_ball import min_circle_clarabel
 from experiments.welzl import ball_with_counts, min_circle_welzl
 
 # Grids small enough to finish in a few minutes, wide enough to show the trends.

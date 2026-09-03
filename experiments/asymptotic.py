@@ -11,7 +11,7 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from cvxball.solver import min_circle_clarabel
+from experiments.clarabel_ball import min_circle_clarabel
 
 
 def clarabel_ball(n: int) -> tuple[float, np.ndarray]:
