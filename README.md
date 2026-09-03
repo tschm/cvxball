@@ -1,6 +1,15 @@
-# 🔵 [cvxball](https://www.cvxgrp.org/cvxball)
+# 🔵 [cvxball](https://tschm.github.io/cvxball/)
 
+[![CI](https://github.com/tschm/cvxball/actions/workflows/rhiza_ci.yml/badge.svg)](https://github.com/tschm/cvxball/actions/workflows/rhiza_ci.yml)
+[![Audit](https://github.com/tschm/cvxball/actions/workflows/audit.yml/badge.svg)](https://github.com/tschm/cvxball/actions/workflows/audit.yml)
+[![CodeQL](https://github.com/tschm/cvxball/actions/workflows/rhiza_codeql.yml/badge.svg)](https://github.com/tschm/cvxball/actions/workflows/rhiza_codeql.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/tschm/cvxball/badge)](https://scorecard.dev/viewer/?uri=github.com/tschm/cvxball)
+
+[![Docs](https://img.shields.io/badge/docs-tschm.github.io%2Fcvxball-blue)](https://tschm.github.io/cvxball/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue)](pyproject.toml)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 
 ## 📋 Overview
 
