@@ -8,7 +8,7 @@
 \usepackage{mathtools}
 \usepackage{booktabs}
 \usepackage{xcolor}
-\usepackage[margin=2.2cm]{geometry}
+\usepackage[margin=2.1cm]{geometry}
 \usepackage[colorlinks=true,allcolors=blue!50!black]{hyperref}
 
 \theoremstyle{plain}
@@ -154,7 +154,9 @@ $\argmax_i\norm{p_i-x}$ with weight $0$.
 Each iteration either strictly increases $\varphi$ or strictly shrinks $F$, and
 there are finitely many working sets, so the method is finite; as with any
 active-set method a degenerate zero-length step requires an anti-cycling rule in
-exact arithmetic, and in practice an iteration cap serves as a safety net. Note
+exact arithmetic --- for this problem, a Bland-type order on the points, which
+Fischer, G\"artner and Kutz~\cite{fischer2003} prove terminating and then reject
+as too slow. In practice an iteration cap serves as a safety net. Note
 that
 \begin{equation}
   \label{eq:gradient-note}
@@ -262,10 +264,9 @@ a property of the algorithm and the input in any language.
   $10^5$ & 10 & $0$                 & $-1.3\cdot10^{-12}$ & ---                & 0.015 & 6.972 & ---   & --- \\
   \bottomrule
 \end{tabular}
-\caption{Standard normal clouds, one cloud per row; median of three runs. Apple
-M4 Pro, CPython 3.12.13, NumPy 2.5.1, Clarabel 0.11.1 at its default tolerances.
-Welzl was not attempted on the two rows marked ---; Table~\ref{tab:sweep} is
-where that limit is measured rather than guessed.}
+\caption{Standard normal clouds, one per row; median of three runs. Apple M4 Pro,
+CPython 3.12.13, NumPy 2.5.1, Clarabel 0.11.1 at default tolerances. Welzl was
+not attempted on the rows marked ---; Table~\ref{tab:sweep} measures that limit.}
 \label{tab:bench}
 \end{table}
 
@@ -283,10 +284,9 @@ where that limit is measured rather than guessed.}
   active-set time (ms)        & 0.2 & 0.2 & 0.3 & 0.5 & 0.9 & 0.7 & 0.8 & 0.7 & 0.6 & 0.6 \\
   \bottomrule
 \end{tabular}
-\caption{Growth in $d$ at $n=10^3$ fixed: medians over 15 seeds, with the worst
-of those seeds on the second line. Medians are necessary here --- the basis count
-is a high-variance random variable, and a mean over five seeds still puts $d=11$
-below $d=10$.}
+\caption{Growth in $d$ at $n=10^3$: medians over 15 seeds, worst seed on the
+second line. Medians are necessary --- the basis count is high-variance, and a
+mean over five seeds still puts $d=11$ below $d=10$.}
 \label{tab:sweep}
 \end{table}
 
@@ -300,24 +300,22 @@ basis computations, six times the median, so the distribution has a tail that a
 single measurement will not find --- which is the practical form the
 expected-time analysis takes.
 
-Neither comparison is entirely fair to its subject. Clarabel is built for large
-sparse programs of arbitrary shape and is here asked for a dense problem of one
-particular shape whose combinatorial structure the other method exploits; Welzl's
-algorithm is being run in the least favourable language for a scalar recursion.
-That the specialised method wins on its own problem is the weakest possible claim,
-and the only one made here.
+Neither comparison is fair to its subject: Clarabel is built for large sparse
+programs of arbitrary shape, and Welzl's recursion is being run in the least
+favourable language for one. That the specialised method wins on its own problem
+is the weakest possible claim, and the only one made here.
 
 \section{Relation to the minimum-norm point problem}
 
-If all points have equal norm $\rho$ --- for instance after the standard lift of
-a kernel problem onto a sphere --- then~\eqref{eq:phi} reduces to
-$\varphi(u)=\rho^2-\norm{x(u)}^2$, so maximising $\varphi$ over $\Delta_n$ is
-minimising $\norm{x}$ over $\conv S$: the minimum-norm point problem solved by
-Wolfe's algorithm and by the Frank--Wolfe family. The working set of
-Section~2 is then Wolfe's corral, the subproblem~\eqref{eq:sub} is his affine
-minimiser, and the drop step is his major cycle. The general case is the same
-algorithm with the linear term $\sum_iu_i\norm{p_i}^2$ restored, which is what
-makes the subproblem a circumcentre rather than a projection.
+If all points have equal norm $\rho$ --- after the standard lift of a kernel
+problem onto a sphere, say --- then~\eqref{eq:phi} reduces to
+$\varphi(u)=\rho^2-\norm{x(u)}^2$, and maximising it over $\Delta_n$ is
+minimising $\norm{x}$ over $\conv S$: the minimum-norm point problem of
+Wolfe~\cite{wolfe1976} and of the Frank--Wolfe family~\cite{frank1956}. The
+working set is then Wolfe's corral, the subproblem~\eqref{eq:sub} his affine
+minimiser, the drop step his major cycle. Restoring the linear term
+$\sum_iu_i\norm{p_i}^2$ gives the general case, and is what makes the subproblem
+a circumcentre rather than a projection.
 
 \section{Relation to Welzl's algorithm}
 
@@ -345,23 +343,64 @@ basis; the method above yields the barycentric weights as well, which are what
 make~\eqref{eq:kkt} checkable in one pass and what become~\eqref{eq:conic-dual}
 when a conic interface asks for a dual. The weights can be recovered from a basis
 by solving~\eqref{eq:sub}, but they are not a by-product of the search there,
-whereas here they \emph{are} the search --- an asymmetry that also makes a
-support set a natural warm start for a perturbed cloud, which a recursion over a
-fresh random permutation has no way to accept.
+whereas here they \emph{are} the search --- which is also why a support set warm
+starts a perturbed cloud and a fresh random permutation cannot.
 
-G\"artner's robust implementation~\cite{gaertner1999} addresses the numerical
-fragility of the recursion's predicates and should be read alongside the
-original; the invariance requirements of Section~3 are this method's answer to
-the same question.
+G\"artner's robust implementation~\cite{gaertner1999} addresses the fragility of
+the recursion's predicates; Section~3 answers the same question here.
+
+\section{Relation to the pivoting method of Fischer, G\"artner and Kutz}
+
+The other exact method in wide use~\cite{fischer2003} shares this one's support
+set and its drop criterion, and differs from it in the direction of approach.
+
+Their loop invariant is that the current ball contains the cloud: $S\subseteq
+B(c,T)$, with $T$ on its boundary. Feasibility is never surrendered and the
+radius falls monotonically to $R$ from above, terminating when $c$ reaches
+$\conv T$. Here it is dual feasibility that is never surrendered --- $u$ stays on
+$\Delta_n$ and $\varphi$ climbs --- so by Proposition~\ref{prop:duality} the
+radius is a \emph{lower} bound throughout and the ball on hand fails to contain
+the cloud until the final iteration. Theirs is a primal feasible-point method,
+this a dual one in the sense of~\cite{goldfarb1983}: every iterate solves some
+face exactly and none is feasible for the whole problem until the last.
+
+The pivots differ accordingly. They never take a full step: the centre walks
+along $[c,\mathrm{cc}(T)]$ and is truncated by whichever point first touches the
+shrinking sphere, which is also the point that enters $T$. Section~2 takes the
+whole step to $\mathrm{cc}(F)$ and only then consults the data, admitting the
+farthest violator. The criterion for leaving is the same in both --- a negative
+barycentric coordinate --- but the mechanics are not: a ratio test in weight
+space here, immediate removal and a resumed walk there.
+
+Degeneracy is the sharpest split. Their invariant requires $T$ affinely
+independent and their implementation defends it, admitting a stopping point only
+when it is not too close to $\aff(T)$. Section~2 permits dependence and answers
+it, with a descent direction in the null space. Neither is the better choice in
+general: theirs avoids a case, this one resolves it.
+
+Their linear algebra is the stronger, and it decides the regime each method is
+good for. They never refactorise --- a dynamic $QR$ of the edge matrix, updated
+by Givens rotations in $O(d^2)$ per insertion, exploiting that
+$\mathrm{cc}(T)$ is the orthogonal projection of $c$ onto $\aff(T)$ --- where
+Section~2 rebuilds $DD\T$ and solves it afresh at every pivot. That is
+affordable while $d$ is small and is why they report $d$ up to $2\,000$ and this
+note stops at $20$. In the other direction their per-pivot cost does not fall
+with $n$ while the $O(nd)$ sweep vectorises, which is the regime
+Table~\ref{tab:bench} lives in. One of their observations deserves flagging:
+almost-cospherical clouds are their \emph{hardest} inputs, points entering and
+leaving the support repeatedly, whereas cospherical inputs are where the method
+here is at its most accurate. Both can hold at once --- theirs is a claim about
+iteration counts, this one about the final answer.
 
 \section{Notes}
 
 The problem is Sylvester's~\cite{sylvester1857}; Elzinga and
 Hearn~\cite{elzinga1972} gave an early finite algorithm of this type, and
-Section~7 places it against the randomised incremental line of work. The
-support-set framework of~\cite{fischer2003} also covers the smallest ball
-enclosing a set of \emph{balls}; the method above is stated and implemented here
-for points only. The QP machinery is standard~\cite{nocedal2006}. An
+Sections~7 and~8 place it against the two exact lines of work that followed. Of
+those this method is of the quadratic-programming one, after G\"artner and
+Sch\"onherr~\cite{gaertner2000}, whose reservation that a QP formulation needed
+exact arithmetic past a few hundred dimensions this note cannot dispute --- its
+measurements stop at $d=20$. The QP machinery is standard~\cite{nocedal2006}. An
 implementation of the method, of the Goldfarb--Idnani core, and of the conic
 front end is available at \url{https://github.com/tschm/cvxball}.
 
@@ -376,6 +415,9 @@ front end is available at \url{https://github.com/tschm/cvxball}.
   630--641, 2003.
 \bibitem{gaertner1999} B.~G\"artner. Fast and robust smallest enclosing balls.
   \emph{Proc.\ ESA}, 325--338, 1999.
+\bibitem{gaertner2000} B.~G\"artner and S.~Sch\"onherr. An efficient, exact,
+  and generic quadratic programming solver for geometric optimization.
+  \emph{Proc.\ 16th Annu.\ ACM Sympos.\ Comput.\ Geom.}, 110--118, 2000.
 \bibitem{goldfarb1983} D.~Goldfarb and A.~Idnani. A numerically stable dual
   method for solving strictly convex quadratic programs. \emph{Mathematical
   Programming} 27:1--33, 1983.
