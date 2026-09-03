@@ -8,7 +8,7 @@
 \usepackage{mathtools}
 \usepackage{booktabs}
 \usepackage{xcolor}
-\usepackage[margin=2.4cm]{geometry}
+\usepackage[margin=2.2cm]{geometry}
 \usepackage[colorlinks=true,allcolors=blue!50!black]{hyperref}
 
 \theoremstyle{plain}
@@ -221,44 +221,91 @@ from~\eqref{eq:kkt} at the cost of one pass over the data, without re-solving.
 
 \section{A numerical comparison}
 
-Table~\ref{tab:bench} compares the method with Clarabel~0.11.1 applied
-to~\eqref{eq:primal} on Gaussian clouds, measuring the relative enclosure error
-$\max_i\norm{p_i-x}/R-1$ --- positive values mean the returned ball fails to
-contain the cloud. Both agree on $R$ to the digits shown. The active-set figures
-are $0$ or a single ulp, since the returned $R$ is by construction the exact
-maximum distance over the support of a centre computed from~\eqref{eq:sub};
-Clarabel's are its interior-point residuals, four to five orders larger. The
-timing gap grows with $n$ because only the $O(nd)$ sweep depends on it.
+Table~\ref{tab:bench} compares the method with Clarabel~0.11.1
+applied to~\eqref{eq:primal} and with Welzl's algorithm~\cite{welzl1991}, on
+Gaussian clouds. Two quantities are reported, because either alone would
+mislead.
+
+The first is the relative enclosure error $\max_i\norm{p_i-x}/R-1$, where a
+positive value means the returned ball does not in fact contain the cloud. It is
+a deterministic property of the returned pair, free of timing noise. Here the two
+basis-terminating methods are indistinguishable --- both come in at zero or a
+single ulp, since each returns a centre from an exact subproblem solve and a
+radius that is by construction the maximum distance over its own support --- while
+Clarabel reports its interior-point residuals, three to five orders larger. The
+exactness is thus a property of terminating at a basis, not of this method in
+particular; Section~7 is where the two basis methods actually differ.
+
+The second is wall-clock time, and it must be read as a comparison of
+\emph{implementations}. The method of Section~2 spends its time in one vectorised
+sweep per iteration, whereas Welzl's recursion evaluates a containment predicate
+per step in scalar Python; a good deal of the gap in the $t$ columns is CPython
+against NumPy rather than one algorithm against another. The basis count is
+therefore given alongside: the number of circumspheres the recursion computes is
+a property of the algorithm and the input in any language.
 
 \begin{table}[h]
 \centering
 \small
-\begin{tabular}{rr rr rr}
+\begin{tabular}{rr rrr rrr r}
   \toprule
-  & & \multicolumn{2}{c}{enclosure error} & \multicolumn{2}{c}{time (s)} \\
-  \cmidrule(lr){3-4}\cmidrule(lr){5-6}
-  $n$ & $d$ & active set & Clarabel & active set & Clarabel \\
+  & & \multicolumn{3}{c}{enclosure error} & \multicolumn{3}{c}{time (s)} & \\
+  \cmidrule(lr){3-5}\cmidrule(lr){6-8}
+  $n$ & $d$ & active set & Clarabel & Welzl & active set & Clarabel & Welzl & bases \\
   \midrule
-  $10^3$ &  2 & $0$                  & $5.3\cdot10^{-12}$ & 0.001 & 0.009 \\
-  $10^3$ & 10 & $0$                  & $9.4\cdot10^{-12}$ & 0.001 & 0.056 \\
-  $10^4$ &  3 & $2.2\cdot10^{-16}$   & $2.0\cdot10^{-12}$ & 0.001 & 0.141 \\
-  $10^4$ & 20 & $-1.1\cdot10^{-16}$  & $3.5\cdot10^{-14}$ & 0.006 & 0.948 \\
-  $10^5$ &  3 & $-2.2\cdot10^{-16}$  & $1.7\cdot10^{-11}$ & 0.008 & 2.225 \\
-  $10^5$ & 10 & $0$                  & $-7.2\cdot10^{-12}$ & 0.014 & 6.595 \\
+  $10^3$ &  2 & $0$                 & $5.3\cdot10^{-12}$  & $2.2\cdot10^{-16}$ & 0.000 & 0.008 & 0.010 & 265 \\
+  $10^3$ &  5 & $-2.2\cdot10^{-16}$ & $-7.2\cdot10^{-12}$ & $2.2\cdot10^{-16}$ & 0.000 & 0.033 & 0.018 & 592 \\
+  $10^4$ &  3 & $0$                 & $3.8\cdot10^{-12}$  & $0$                & 0.001 & 0.174 & 0.445 & 2\,406 \\
+  $10^4$ & 20 & $0$                 & $1.0\cdot10^{-12}$  & ---                & 0.006 & 0.934 & ---   & --- \\
+  $10^5$ &  2 & $0$                 & $-8.0\cdot10^{-13}$ & $0$                & 0.003 & 1.502 & 0.961 & 813 \\
+  $10^5$ &  3 & $0$                 & $1.3\cdot10^{-10}$  & $0$                & 0.009 & 1.997 & 4.073 & 5\,998 \\
+  $10^5$ & 10 & $0$                 & $-1.3\cdot10^{-12}$ & ---                & 0.015 & 6.972 & ---   & --- \\
   \bottomrule
 \end{tabular}
-\caption{Standard normal clouds, one seed per row; Apple M4 Pro, CPython 3.12.13,
-NumPy 2.5.1, Clarabel 0.11.1 at its default tolerances. Times are a single run
-and are indicative only; the enclosure errors are not, being deterministic
-properties of the returned pair.}
+\caption{Standard normal clouds, one cloud per row; median of three runs. Apple
+M4 Pro, CPython 3.12.13, NumPy 2.5.1, Clarabel 0.11.1 at its default tolerances.
+Welzl was not attempted on the two rows marked ---; Table~\ref{tab:sweep} is
+where that limit is measured rather than guessed.}
 \label{tab:bench}
 \end{table}
 
-The comparison is not entirely fair to Clarabel, which is built for large sparse
-programs of arbitrary shape and is here being asked for a dense problem of one
-particular shape whose combinatorial structure the other method exploits. That
-is the point: the specialised method is worth keeping precisely where the
-structure is known.
+\begin{table}[h]
+\centering
+\small
+\setlength{\tabcolsep}{4.5pt}
+\begin{tabular}{l rrrrrrrrrr}
+  \toprule
+  $d$ & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 & 10 & 11 \\
+  \midrule
+  Welzl bases, median $/10^3$ & 0.19 & 1.05 & 2.50 & 6.4 & 12.0 & 21.4 & 58.6 & 115 & 189 & 276 \\
+  Welzl bases, worst $/10^3$  & 0.55 & 1.70 & 4.92 & 12.9 & 35.9 & 49.3 & 194  & 577 & 864 & 1602 \\
+  Welzl time (s)              & 0.006 & 0.027 & 0.053 & 0.143 & 0.234 & 0.490 & 1.174 & 2.593 & 3.714 & 5.493 \\
+  active-set time (ms)        & 0.2 & 0.2 & 0.3 & 0.5 & 0.9 & 0.7 & 0.8 & 0.7 & 0.6 & 0.6 \\
+  \bottomrule
+\end{tabular}
+\caption{Growth in $d$ at $n=10^3$ fixed: medians over 15 seeds, with the worst
+of those seeds on the second line. Medians are necessary here --- the basis count
+is a high-variance random variable, and a mean over five seeds still puts $d=11$
+below $d=10$.}
+\label{tab:sweep}
+\end{table}
+
+Table~\ref{tab:sweep} isolates the dependence on $d$ at fixed $n$. Welzl's median
+basis count rises from $191$ to $275\,574$ between $d=2$ and $d=11$, a factor
+between $1.5$ and $2.7$ per dimension across the upper half of that range, while
+the active-set time stays flat at $0.6$--$0.9$\,ms throughout: its work per
+iteration is a solve of order at most $d$, and $d$ is small. The worst-seed column
+matters as much as the median. At $d=11$ one of fifteen clouds cost $1.6$~million
+basis computations, six times the median, so the distribution has a tail that a
+single measurement will not find --- which is the practical form the
+expected-time analysis takes.
+
+Neither comparison is entirely fair to its subject. Clarabel is built for large
+sparse programs of arbitrary shape and is here asked for a dense problem of one
+particular shape whose combinatorial structure the other method exploits; Welzl's
+algorithm is being run in the least favourable language for a scalar recursion.
+That the specialised method wins on its own problem is the weakest possible claim,
+and the only one made here.
 
 \section{Relation to the minimum-norm point problem}
 
@@ -275,47 +322,35 @@ makes the subproblem a circumcentre rather than a projection.
 \section{Relation to Welzl's algorithm}
 
 Welzl's randomised incremental method~\cite{welzl1991} computes the same object
-and, like the method above, terminates at an exact basis rather than at a
-tolerance. The two differ in how that basis is searched.
+and, as Table~\ref{tab:bench} confirms, terminates at an exact basis just as the
+method above does. The two differ in how that basis is searched.
 
 Welzl's search is combinatorial: it recurses over subsets, drawing a point $p$ at
 random, solving without it, and re-solving with $p$ forced onto the boundary when
 $p$ falls outside the ball just computed. The permutation drives the recursion,
 the only arithmetic is the primitive that circumscribes at most $d+1$ points, and
-the analysis is that of LP-type problems. The method of Section~2 searches
-instead by ascent on $\varphi$: the weights say what to do next, a negative
+the analysis is that of LP-type problems --- expected $O(n)$ time for fixed $d$,
+with a constant known to grow superexponentially in $d$. The method of Section~2
+searches instead by ascent on $\varphi$: the weights choose the pivot, a negative
 barycentric coordinate calling for a drop and the farthest violator for an
-addition, so the search is monotone and local, with add \emph{and} drop pivots,
-and it is deterministic.
+addition. The search is monotone, local, deterministic, and admits add
+\emph{and} drop steps; what it does not admit is an expected-time bound, and
+Section~2 claims none.
 
-Three consequences are worth stating, the first of them not in this method's
-favour. Welzl's algorithm runs in expected $O(n)$ time for fixed $d$, and nothing
-comparable is claimed here --- finite termination, with the usual caveat about
-degenerate steps, is all Section~2 establishes. But that bound holds $d$ fixed,
-and its constant grows like $d!$, which is what confines the method in practice
-to low dimension; the cost per iteration here is $O(nd)$ plus a solve of order at
-most $d$, which is why the $d=20$ row of Table~\ref{tab:bench} is unremarkable.
-This is the trade that motivated the support-set framework of Fischer, G\"artner
-and Kutz~\cite{fischer2003}, to which the present method belongs.
-
-Second, the shape of the work differs as much as its amount. The inner operation
-here is one sweep of squared distances over all points --- a single vectorised
-kernel, and the only place $n$ appears --- while Welzl's is a membership
-predicate evaluated per recursion step, at a recursion depth of $O(n)$. On the
-array-oriented runtimes where implementations of this problem now mostly live,
-that difference dominates the constant factors on both sides.
-
-Third, the two return different certificates. Welzl's recursion yields the ball
-and its basis; the method above yields the barycentric weights as well, which
-are what make~\eqref{eq:kkt} checkable in one pass and what
-become~\eqref{eq:conic-dual} when a conic interface asks for a dual. The weights
-can of course be recovered from a basis by solving~\eqref{eq:sub}, but they are
-not a by-product of the search there, whereas here they \emph{are} the search.
-The same asymmetry makes a support set a natural warm start for a perturbed
-cloud, which a recursion over a fresh random permutation has no way to accept.
+Table~\ref{tab:sweep} is the practical shape of that difference: at fixed $n$ the
+recursion's cost climbs by a factor of two or so per dimension and carries a long
+upper tail, while a solve of order $d$ does not notice $d$ in this range. The
+other difference is the certificate. Welzl's recursion yields the ball and its
+basis; the method above yields the barycentric weights as well, which are what
+make~\eqref{eq:kkt} checkable in one pass and what become~\eqref{eq:conic-dual}
+when a conic interface asks for a dual. The weights can be recovered from a basis
+by solving~\eqref{eq:sub}, but they are not a by-product of the search there,
+whereas here they \emph{are} the search --- an asymmetry that also makes a
+support set a natural warm start for a perturbed cloud, which a recursion over a
+fresh random permutation has no way to accept.
 
 G\"artner's robust implementation~\cite{gaertner1999} addresses the numerical
-fragility of the recursion's predicates, and should be read alongside the
+fragility of the recursion's predicates and should be read alongside the
 original; the invariance requirements of Section~3 are this method's answer to
 the same question.
 
@@ -331,7 +366,9 @@ implementation of the method, of the Goldfarb--Idnani core, and of the conic
 front end is available at \url{https://github.com/tschm/cvxball}.
 
 \begin{thebibliography}{9}
-\small
+\footnotesize
+\setlength{\itemsep}{1pt}
+\setlength{\parskip}{0pt}
 \bibitem{elzinga1972} J.~Elzinga and D.~W.~Hearn. Geometrical solutions for some
   minimax location problems. \emph{Transportation Science} 6(4):379--394, 1972.
 \bibitem{fischer2003} K.~Fischer, B.~G\"artner and M.~Kutz. Fast
