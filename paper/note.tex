@@ -272,15 +272,61 @@ minimiser, and the drop step is his major cycle. The general case is the same
 algorithm with the linear term $\sum_iu_i\norm{p_i}^2$ restored, which is what
 makes the subproblem a circumcentre rather than a projection.
 
+\section{Relation to Welzl's algorithm}
+
+Welzl's randomised incremental method~\cite{welzl1991} computes the same object
+and, like the method above, terminates at an exact basis rather than at a
+tolerance. The two differ in how that basis is searched.
+
+Welzl's search is combinatorial: it recurses over subsets, drawing a point $p$ at
+random, solving without it, and re-solving with $p$ forced onto the boundary when
+$p$ falls outside the ball just computed. The permutation drives the recursion,
+the only arithmetic is the primitive that circumscribes at most $d+1$ points, and
+the analysis is that of LP-type problems. The method of Section~2 searches
+instead by ascent on $\varphi$: the weights say what to do next, a negative
+barycentric coordinate calling for a drop and the farthest violator for an
+addition, so the search is monotone and local, with add \emph{and} drop pivots,
+and it is deterministic.
+
+Three consequences are worth stating, the first of them not in this method's
+favour. Welzl's algorithm runs in expected $O(n)$ time for fixed $d$, and nothing
+comparable is claimed here --- finite termination, with the usual caveat about
+degenerate steps, is all Section~2 establishes. But that bound holds $d$ fixed,
+and its constant grows like $d!$, which is what confines the method in practice
+to low dimension; the cost per iteration here is $O(nd)$ plus a solve of order at
+most $d$, which is why the $d=20$ row of Table~\ref{tab:bench} is unremarkable.
+This is the trade that motivated the support-set framework of Fischer, G\"artner
+and Kutz~\cite{fischer2003}, to which the present method belongs.
+
+Second, the shape of the work differs as much as its amount. The inner operation
+here is one sweep of squared distances over all points --- a single vectorised
+kernel, and the only place $n$ appears --- while Welzl's is a membership
+predicate evaluated per recursion step, at a recursion depth of $O(n)$. On the
+array-oriented runtimes where implementations of this problem now mostly live,
+that difference dominates the constant factors on both sides.
+
+Third, the two return different certificates. Welzl's recursion yields the ball
+and its basis; the method above yields the barycentric weights as well, which
+are what make~\eqref{eq:kkt} checkable in one pass and what
+become~\eqref{eq:conic-dual} when a conic interface asks for a dual. The weights
+can of course be recovered from a basis by solving~\eqref{eq:sub}, but they are
+not a by-product of the search there, whereas here they \emph{are} the search.
+The same asymmetry makes a support set a natural warm start for a perturbed
+cloud, which a recursion over a fresh random permutation has no way to accept.
+
+G\"artner's robust implementation~\cite{gaertner1999} addresses the numerical
+fragility of the recursion's predicates, and should be read alongside the
+original; the invariance requirements of Section~3 are this method's answer to
+the same question.
+
 \section{Notes}
 
 The problem is Sylvester's~\cite{sylvester1857}; Elzinga and
-Hearn~\cite{elzinga1972} gave an early finite algorithm of this type.
-Welzl's randomised incremental method~\cite{welzl1991} is expected $O(n)$ for
-fixed $d$ but degrades in $d$; G\"artner~\cite{gaertner1999} made it robust, and
-Fischer, G\"artner and Kutz~\cite{fischer2003} developed the support-set
-framework the method above belongs to, including the balls-of-balls
-generalisation. The QP machinery is standard~\cite{nocedal2006}. An
+Hearn~\cite{elzinga1972} gave an early finite algorithm of this type, and
+Section~7 places it against the randomised incremental line of work. The
+support-set framework of~\cite{fischer2003} also covers the smallest ball
+enclosing a set of \emph{balls}; the method above is stated and implemented here
+for points only. The QP machinery is standard~\cite{nocedal2006}. An
 implementation of the method, of the Goldfarb--Idnani core, and of the conic
 front end is available at \url{https://github.com/tschm/cvxball}.
 
