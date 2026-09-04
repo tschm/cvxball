@@ -10,6 +10,7 @@ that publishes it overwrites whatever is here.
 ## What is here
 
 - [note.pdf](note.pdf)
+- [seb.pdf](seb.pdf)
 
 ## Where it comes from
 
