@@ -9,8 +9,8 @@ from hypothesis import strategies as st
 from hypothesis.extra.numpy import arrays
 from scipy.optimize import linprog
 
+import cvxball._frame as frame_module
 import cvxball.solver as solver_module
-import experiments.active_set_qr as fgk_qr_module
 import experiments.fischer_gaertner_kutz as fgk_module
 from cvxball.solver import min_circle_active_set
 
@@ -19,7 +19,6 @@ from cvxball.solver import min_circle_active_set
 # here, because an independent second implementation of the same problem is the
 # strongest check the shipped one has, and the point of moving it was to stop
 # shipping it, not to stop testing against it.
-from experiments.active_set_qr import min_circle_active_set_qr
 from experiments.clarabel_ball import min_circle_clarabel
 
 # The Fischer-Gärtner-Kutz pivoting method, likewise from `experiments/`. It earns a
@@ -340,81 +339,169 @@ def test_fgk_does_not_mutate_input() -> None:
     np.testing.assert_array_equal(points, original)
 
 
-# --- The active-set method with a maintained factorisation ---------------------
-
-
-@pytest.mark.property
-@settings(deadline=None, max_examples=50)
-@given(points=_point_clouds())
-def test_active_set_qr_agrees_with_the_shipped_solver(points: np.ndarray) -> None:
-    """Carrying the factorisation changes the arithmetic, not the answer.
-
-    ``experiments/active_set_qr.py`` runs the shipped algorithm step for step --
-    same dual, same active set, same pivots -- but reads its subproblem from a
-    maintained ``QR`` of the edge matrix instead of rebuilding one. The two must
-    therefore agree to near machine precision, not merely to a tolerance.
-    """
-    radius_q, center_q = min_circle_active_set_qr(points)
-    radius_s, center_s = min_circle_active_set(points)
-
-    assert radius_q == pytest.approx(radius_s, abs=1e-12, rel=1e-12)
-    assert np.linalg.norm(center_q - center_s) <= 1e-10 * max(1.0, radius_s)
+# --- The maintained factorisation (src/cvxball/_frame.py) ----------------------
 
 
 @pytest.mark.parametrize("cloud", ["gaussian", "cospherical", "duplicated", "flat"])
-def test_active_set_qr_maintained_matches_rebuilt(cloud: str) -> None:
-    """Maintaining and rebuilding the factorisation give the same ball."""
+def test_maintained_factorisation_matches_rebuilding(cloud: str) -> None:
+    """Carrying the factorisation changes the arithmetic, not the answer.
+
+    ``d`` is above :data:`_MAINTAIN_MIN_DIM` here so the maintained path is the
+    one the solver picks by default; ``maintain=False`` forces the rebuild it
+    would use in lower dimensions. Both must find the same ball.
+    """
     rng = np.random.default_rng(6)
-    points = rng.normal(size=(200, 8))
+    points = rng.normal(size=(150, 120))
     if cloud == "cospherical":
         points /= np.linalg.norm(points, axis=1, keepdims=True)
     elif cloud == "duplicated":
-        points = np.repeat(points[:25], 8, axis=0)
+        points = np.repeat(points[:20], 8, axis=0)
     elif cloud == "flat":
-        points[:, 5:] = 0.0
+        points[:, 60:] = 0.0
 
-    radius_dynamic, centre_dynamic = min_circle_active_set_qr(points, dynamic=True)
-    radius_rebuilt, centre_rebuilt = min_circle_active_set_qr(points, dynamic=False)
+    radius_kept, centre_kept = min_circle_active_set(points, maintain=True)
+    radius_built, centre_built = min_circle_active_set(points, maintain=False)
 
-    assert radius_dynamic == pytest.approx(radius_rebuilt, rel=1e-10)
-    assert centre_dynamic == pytest.approx(centre_rebuilt, abs=1e-10 * max(radius_rebuilt, 1.0))
+    assert radius_kept == pytest.approx(radius_built, rel=1e-10)
+    assert centre_kept == pytest.approx(centre_built, abs=1e-10 * max(radius_built, 1.0))
+    _assert_is_minimal_ball(points, radius_kept, centre_kept)
 
 
-def test_active_set_qr_falls_back_when_the_support_goes_dependent() -> None:
-    """An economic QR cannot hold a dependent support, so it rebuilds instead.
+@pytest.mark.property
+@settings(deadline=None, max_examples=25)
+@given(points=_point_clouds())
+def test_maintained_factorisation_agrees_on_small_clouds(points: np.ndarray) -> None:
+    """Forcing the maintained path in low dimensions still gives the same ball.
 
-    This is where the two methods genuinely differ. The pivoting method forbids
-    affine dependence with a stability threshold; the active-set method *permits*
-    it and answers it with a null-space descent step. ``qr_insert`` refuses a
-    column already in the span of ``Q``, so that case has to fall back to a
-    refactorisation -- and the fallback must be exercised, not merely present.
+    The dispatch would not choose it here -- these clouds are far below the
+    threshold -- but the two paths must agree wherever both are legal, or the
+    threshold would be hiding a disagreement rather than picking a faster route.
     """
-    # A cloud confined to a proper subspace of its ambient space: the support can
-    # then span that subspace and still take another point, which is affinely
-    # dependent on it. This particular seed is pinned because the fallback has to
-    # actually run for the test to mean anything.
-    points = np.random.default_rng(1).normal(size=(120, 6))
-    points[:, 3:] = 0.0
+    radius_kept, centre_kept = min_circle_active_set(points, maintain=True)
+    radius_built, centre_built = min_circle_active_set(points, maintain=False)
 
-    frames = []
-    original = fgk_qr_module._EdgeFrame.__init__
+    assert radius_kept == pytest.approx(radius_built, abs=1e-12, rel=1e-12)
+    assert np.linalg.norm(centre_kept - centre_built) <= 1e-10 * max(1.0, radius_built)
 
-    def record(self, pts, seed, dynamic, _init=original):
-        """Build the frame as usual, keeping a handle on it for inspection."""
-        _init(self, pts, seed, dynamic)
-        frames.append(self)
 
-    fgk_qr_module._EdgeFrame.__init__ = record
-    try:
-        radius, centre = min_circle_active_set_qr(points, dynamic=True)
-    finally:
-        fgk_qr_module._EdgeFrame.__init__ = original
+def test_maintained_face_updates_keep_qr_equal_to_the_edge_matrix() -> None:
+    """Every update leaves ``QR`` equal to the edge matrix it stands for.
 
-    expected_radius, expected_centre = min_circle_active_set(points)
-    assert radius == pytest.approx(expected_radius, rel=1e-12)
-    assert centre == pytest.approx(expected_centre, abs=1e-10)
-    assert frames, "no frame was constructed"
-    assert frames[0].fallbacks > 0, "the dependent-support path never ran"
+    Walks a frame through the three updates -- inserts, an ordinary removal, and
+    the re-origining removal of position 0, which has no column of its own -- and
+    checks the invariant directly after each, rather than only through the ball
+    that eventually comes out.
+    """
+    rng = np.random.default_rng(9)
+    points = rng.normal(size=(9, 6))
+    frame = frame_module._MaintainedFace(points, 0)
+
+    def check() -> None:
+        """Assert QR reproduces the edges and Q still has orthonormal columns."""
+        face = points[frame.support]
+        edges = (face[1:] - face[0]).T
+        np.testing.assert_allclose(frame._q @ frame._r, edges, atol=1e-12)
+        gram = frame._q.T @ frame._q
+        np.testing.assert_allclose(gram, np.eye(gram.shape[0]), atol=1e-12)
+
+    for index in range(1, 6):
+        frame.insert(index)
+        check()
+    frame.remove(3)
+    check()
+    frame.remove(0)
+    check()
+    assert frame.fallbacks == 0, "points in general position need no rebuild"
+
+
+def test_maintained_face_singleton_support() -> None:
+    """A one-point support has an empty edge matrix and a trivial subproblem."""
+    points = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+    frame = frame_module._MaintainedFace(points, 1)
+
+    assert frame.null_space().shape == (1, 0)
+    assert frame.circumcentre_weights() == pytest.approx([1.0])
+    np.testing.assert_array_equal(frame.face, points[[1]])
+
+    # Removing back down to a singleton takes the `remaining <= 0` branch.
+    frame.insert(0)
+    frame.remove(0)
+    assert frame.support == [0]
+    assert frame.null_space().shape == (1, 0)
+
+
+def test_maintained_face_rebuilds_on_a_dependent_insert() -> None:
+    """An economic QR cannot hold a dependent column, so the frame refactorises.
+
+    This is where the method differs from the pivoting one: it *permits* affine
+    dependence and answers it with a null-space descent step, so the
+    factorisation has to survive a state ``qr_insert`` refuses outright. After
+    the rebuild ``R`` is singular, which is exactly what lets ``null_space`` find
+    the direction that shrinks the support.
+    """
+    # The support must span *less* than the whole space for the refusal to fire:
+    # with Q already square the new column needs no fresh direction and scipy
+    # simply widens R. So this is a square lying in a plane of three-space.
+    points = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 1.0, 0.0]])
+    frame = frame_module._MaintainedFace(points, 0)
+    frame.insert(1)
+    frame.insert(2)
+
+    frame.insert(3)  # (1, 1, 0) is in the affine hull of the first three
+
+    assert frame.fallbacks == 1
+    null_space = frame.null_space()
+    assert null_space.shape[1] > 0, "the dependent support was not detected"
+    for column in null_space.T:
+        assert column.sum() == pytest.approx(0.0, abs=1e-12)
+        assert points[frame.support].T @ column == pytest.approx(np.zeros(3), abs=1e-12)
+
+
+def test_maintained_face_widens_r_when_the_support_spans_the_space() -> None:
+    """A dependent column needs no rebuild once ``Q`` is already square.
+
+    The complement of the case above, and the reason ``_economise`` has to cope
+    with a rectangular ``R``: when the support already spans the whole space
+    there is no new direction to find, so ``qr_insert`` succeeds and simply adds
+    a column to ``R``.
+    """
+    points = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])
+    frame = frame_module._MaintainedFace(points, 0)
+    frame.insert(1)
+    frame.insert(2)
+
+    frame.insert(3)
+
+    assert frame.fallbacks == 0
+    assert frame._r.shape == (2, 3), "R should have widened, not squared"
+    assert frame.null_space().shape[1] > 0
+
+
+def test_maintained_face_duplicate_point_is_rebuilt() -> None:
+    """Inserting a point identical to the origin gives a zero-length column."""
+    points = np.array([[1.0, 1.0], [1.0, 1.0], [3.0, 1.0]])
+    frame = frame_module._MaintainedFace(points, 0)
+
+    frame.insert(1)  # identical to the origin, so the first edge has zero length
+
+    assert frame.support == [0, 1]
+    assert frame.null_space().shape[1] > 0
+
+
+def test_solver_dispatches_on_dimension() -> None:
+    """The default picks the maintained path only above the measured threshold."""
+    assert solver_module._MAINTAIN_MIN_DIM == 100
+
+    rng = np.random.default_rng(2)
+    low = rng.normal(size=(40, 5))
+    high = rng.normal(size=(40, 150))
+
+    # Both dimensions must solve correctly under the automatic choice.
+    for cloud in (low, high):
+        radius, centre = min_circle_active_set(cloud)
+        forced, _ = min_circle_active_set(cloud, maintain=cloud.shape[1] < 100)
+        assert radius == pytest.approx(forced, rel=1e-10)
+        _assert_is_minimal_ball(cloud, radius, centre)
 
 
 # --- Degenerate inputs (issue #269) --------------------------------------------

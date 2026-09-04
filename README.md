@@ -31,7 +31,7 @@ radius, centre = min_circle_active_set(points)
 ### 🔧 The solver
 
 One solver, taking `(points, verbose=False)` and returning `(radius, center)`.
-**NumPy is the only dependency** — installing `cvxball` pulls in nothing else.
+**NumPy and SciPy are the only dependencies.** SciPy is there for one thing: the compiled Givens updates (`qr_insert`, `qr_delete`, `qr_update`) that let the solver repair its support's factorisation in $O(dr)$ rather than rebuild it in $O(dr^2)$. That is worth 3.5× at $d = 8000$ and nothing below $d \approx 100$, so the solver dispatches on dimension and only takes that route where it pays.
 
 The active-set method keeps a *support set* of points held on the ball's
 boundary and repeatedly re-centres the ball on that set, dropping a support

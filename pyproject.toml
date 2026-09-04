@@ -14,12 +14,20 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 
-# NumPy is the whole of it. The active-set method in `src/cvxball` is pure NumPy,
-# and the Clarabel cone program it is measured against lives in `experiments/`,
-# so clarabel and scipy are development dependencies rather than a cost imposed
-# on everyone who installs this package.
+# NumPy carries the method; SciPy carries its factorisation at large `d`.
+#
+# SciPy is here for exactly one thing: `qr_insert`, `qr_delete` and `qr_update`,
+# the compiled Givens updates that let the solver repair the factorisation of its
+# support in O(d r) instead of rebuilding it in O(d r^2). That is worth 1.3x at
+# d = 250 and 3.5x at d = 8000, and nothing at all below d ~ 100 -- which is why
+# the solver dispatches on dimension rather than always taking that route.
+#
+# It is a real cost imposed on everyone who installs this package, taken
+# deliberately. Clarabel stays a development dependency: the cone program it
+# serves lives in `experiments/` and is a reference, not a solver this ships.
 dependencies = [
     "numpy>=2.4.6",
+    "scipy>=1.11",
 ]
 
 [project.urls]
@@ -58,6 +66,16 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cvxball"]
+
+# Back after a spell away. It existed to silence `import-untyped` for clarabel and
+# scipy, and went when the cone program moved to `experiments/` and left `src`
+# importing neither. `src/cvxball/_frame.py` imports scipy again, so mypy --strict
+# (the `strict-types` job in audit.yml) needs it once more. Narrow on purpose: it
+# names scipy alone, so the next untyped import has to be a deliberate decision
+# rather than something this block quietly absorbs.
+[[tool.mypy.overrides]]
+module = ["scipy.*"]
+ignore_missing_imports = true
 
 [tool.deptry]
 package_module_name_map = { clarabel = "clarabel", numpy = "numpy", scipy = "scipy", kaleido = "kaleido", plotly = "plotly", marimo = "marimo", matplotlib = "matplotlib" }

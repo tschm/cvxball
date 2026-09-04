@@ -9,14 +9,20 @@ set of points. The library lives in `src/cvxball/` and ships exactly one solver:
 
 - `min_circle_active_set` — an active-set QP method on the dual (a QP over the
   unit simplex), maintaining the support set of points on the ball's boundary.
-  Pure NumPy. It terminates at an exact vertex rather than an interior-point
+  It terminates at an exact vertex rather than an interior-point
   tolerance, and scales far better in the number of points.
 
-**NumPy is the only runtime dependency**, and that is a constraint to preserve,
-not an accident: `clarabel` and `scipy` are in the `dev` group, so anything added
-to `src/cvxball/` that imports either of them breaks the promise that installing
-this package pulls in NumPy and nothing else. `make deps` (deptry over `src`)
-catches it.
+**NumPy and SciPy are the runtime dependencies, and clarabel is not.** SciPy
+earns its place through exactly one thing: `src/cvxball/_frame.py` uses
+`qr_insert`, `qr_delete` and `qr_update` — compiled Givens updates — to repair
+the support's factorisation in `O(dr)` instead of rebuilding it in `O(dr^2)`.
+That is worth 3.5x at `d = 8000`, nothing below `d ~ 100`, and a *loss* below
+`d ~ 50`, which is why `min_circle_active_set` dispatches on dimension
+(`_MAINTAIN_MIN_DIM`) rather than always taking that route. Do not widen the
+dependency set further without the same kind of measurement: `clarabel` stays in
+the `dev` group because the cone program it serves lives in `experiments/` and is
+a reference, not a solver this ships. `make deps` (deptry over `src`) is what
+catches an undeclared or unused one.
 
 Three *reference* implementations of the same problem live in `experiments/`,
 which is not installed with the package:
@@ -152,10 +158,14 @@ its own in `.github/workflows/audit.yml`:
   for advisories — the `dependency-advisories` job runs `pip-audit` over
   `uv.lock`.
 - `typecheck` is `ty` alone — the `strict-types` job runs `mypy --strict src`.
-  There is no longer a `[[tool.mypy.overrides]]` block: it existed to silence
-  `import-untyped` for `clarabel` and `scipy`, and `src` imports neither since
-  the cone program moved to `experiments/`. Re-add it if anything under `src`
-  ever imports an untyped package again.
+  The `[[tool.mypy.overrides]]` block is back, naming `scipy.*` only: it had gone
+  when the cone program moved to `experiments/` and left `src` importing nothing
+  untyped, and returned with `src/cvxball/_frame.py`. `ty` needs its own
+  suppression for the same imports — a per-name `# ty: ignore[unresolved-import]`
+  on `qr_insert`, `qr_delete` and `qr_update`, which are re-exported from a Cython
+  extension and so are absent from the stubs while present at run time. The
+  directive has to sit on each imported name; on the opening parenthesis it is
+  reported as unused *and* the errors still fire.
 
 There is no `make validate`, and `make deptry` is gone (the target is `deps`).
 Template drift is caught by the `check-managed-files` pre-commit hook instead.

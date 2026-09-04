@@ -6,7 +6,10 @@ points on the ball's boundary.  Each iteration costs one small dense linear
 solve, and it terminates at an exact vertex of the dual feasible set rather than
 at an interior-point tolerance.
 
-It is the only solver this package ships, and NumPy is the only thing it needs.
+It is the only solver this package ships. NumPy carries the method; SciPy
+carries the factorisation of its support at large `d`, through the compiled
+Givens updates in :mod:`cvxball._frame` -- see :data:`_MAINTAIN_MIN_DIM` for
+where that starts to pay and why it is not used below it.
 The cone-program route that used to sit beside it -- assembling the
 second-order-cone program by hand and handing it to Clarabel -- now lives in
 ``experiments/clarabel_ball.py``, because that is what it had become: the
@@ -16,6 +19,8 @@ installing this package pulls in NumPy and nothing else.
 """
 
 import numpy as np
+
+from cvxball._frame import _MaintainedFace
 
 
 def _validate(points: np.ndarray) -> np.ndarray:
@@ -84,6 +89,21 @@ _FEAS_RTOL = 1e-9
 _FEAS_NOISE = 64.0
 # Safety net only: the method is finite, so hitting this means numerical trouble.
 _MAX_ITER_PER_POINT = 50
+# Ambient dimension from which carrying the factorisation across iterations starts
+# to pay. Below it the SciPy update calls cost more than the rebuild they save --
+# measured at 1000 standard normal points on an Apple M4 Pro, best of many runs:
+#
+#     d      rebuild   maintained
+#     20     0.79 ms      1.05 ms     0.75x   -- maintaining loses
+#     50     2.18 ms      2.52 ms     0.86x
+#    100     4.78 ms      4.60 ms     1.04x   -- parity, near enough
+#    250    20.6  ms     16.2  ms     1.27x   -- and it grows from here
+#   8000    11.3  s       3.19 s      3.54x
+#
+# So this is an empirical constant, not a derived one, and it is a threshold on
+# the *dimension* rather than on the support size because the choice has to be
+# made once, before the support exists. `maintain=` overrides it either way.
+_MAINTAIN_MIN_DIM = 100
 
 
 def _sq_dist(points: np.ndarray, centre: np.ndarray) -> np.ndarray:
@@ -187,7 +207,76 @@ def _face_weights(face: np.ndarray) -> np.ndarray:
     return np.concatenate(([1.0 - float(y.sum())], y))
 
 
-def min_circle_active_set(points: np.ndarray, verbose: bool = False) -> tuple[float, np.ndarray]:
+def _shrink(support: "_RebuiltFace | _MaintainedFace", keep: np.ndarray) -> None:
+    """Drop every support position whose weight has fallen to zero.
+
+    Positions are removed back to front so the earlier ones keep their indices,
+    which matters because a maintained factorisation is repaired per removal.
+
+    Args:
+        support: The face to shrink, in place.
+        keep: Boolean mask over the current support; ``False`` entries go.
+    """
+    for position in sorted(np.flatnonzero(~keep).tolist(), reverse=True):
+        support.remove(position)
+
+
+class _RebuiltFace:
+    """The support set, with its subproblem recomputed from the points each time.
+
+    The counterpart of :class:`cvxball._frame._MaintainedFace`, and the cheaper of
+    the two whenever the support is small: there is no factorisation to carry, so
+    nothing to repair, and the whole cost is two small dense decompositions that
+    NumPy dispatches straight into LAPACK. Below :data:`_MAINTAIN_MIN_DIM` that
+    beats paying SciPy's per-update overhead.
+    """
+
+    def __init__(self, points: np.ndarray, seed: int) -> None:
+        """Start from the one-point support ``{seed}``.
+
+        Args:
+            points: The ``(n, d)`` cloud, already centred and scaled.
+            seed: Index of the point the support starts as.
+        """
+        self._points = points
+        self.support: list[int] = [seed]
+        self.fallbacks = 0
+
+    @property
+    def face(self) -> np.ndarray:
+        """Return the ``(m, d)`` array of support points."""
+        return self._points[self.support]
+
+    def insert(self, index: int) -> None:
+        """Take ``points[index]`` into the support.
+
+        Args:
+            index: Index into the cloud of the entering point.
+        """
+        self.support.append(index)
+
+    def remove(self, position: int) -> None:
+        """Drop the support point at ``position``.
+
+        Args:
+            position: Index within the support list.
+        """
+        del self.support[position]
+
+    def null_space(self) -> np.ndarray:
+        """Return the weight directions that leave the centre fixed."""
+        return _affine_null_space(self.face)
+
+    def circumcentre_weights(self) -> np.ndarray:
+        """Return the barycentric weights of the face's circumcentre."""
+        return _face_weights(self.face)
+
+
+def min_circle_active_set(
+    points: np.ndarray,
+    verbose: bool = False,
+    maintain: bool | None = None,
+) -> tuple[float, np.ndarray]:
     """Compute the smallest enclosing circle with an active-set method.
 
     An active-set QP method on the dual of the enclosing-ball problem, in place of
@@ -211,6 +300,14 @@ def min_circle_active_set(points: np.ndarray, verbose: bool = False) -> tuple[fl
                 points and *d* is the ambient dimension.
         verbose: If ``True``, print the support size and radius per iteration.
                  Defaults to ``False``.
+        maintain: Whether to carry the support's factorisation across iterations
+                 and repair it, rather than rebuilding it each time.  ``None``,
+                 the default, decides on the ambient dimension: repairing costs
+                 ``O(d r)`` against ``O(d r^2)`` to rebuild, which is decisive by
+                 ``d = 250`` and a net loss below ``d = 100`` where SciPy's
+                 per-update overhead exceeds what it saves (see
+                 :data:`_MAINTAIN_MIN_DIM`).  Both settings compute the same ball;
+                 pass one explicitly only to measure the difference.
 
     Returns:
         A tuple ``(radius, center)`` where *radius* is the optimal enclosing
@@ -280,13 +377,17 @@ def min_circle_active_set(points: np.ndarray, verbose: bool = False) -> tuple[fl
     # Rounding floor of a squared distance, set by the magnitude of the coordinates
     # that go into it rather than by any fixed constant.
     noise_floor = _FEAS_NOISE * float(np.finfo(np.float64).eps) * float(sq_norms.max())
-    free = np.array([seed], dtype=np.intp)
+
+    if maintain is None:
+        maintain = pts.shape[1] >= _MAINTAIN_MIN_DIM
+    support = _MaintainedFace(pts, seed) if maintain else _RebuiltFace(pts, seed)
+    free = support.support
     weights = np.ones(1)
 
     iteration_limit = _MAX_ITER_PER_POINT * (n + 1)
     for iteration in range(iteration_limit):
-        face = pts[free]
-        null_space = _affine_null_space(face)
+        face = support.face
+        null_space = support.null_space()
 
         if null_space.size:
             # Affinely dependent support: g is linear on the null space, so follow
@@ -305,7 +406,7 @@ def min_circle_active_set(points: np.ndarray, verbose: bool = False) -> tuple[fl
             largest = float(np.abs(descent).max())
             step = descent / largest if largest > 0.0 else descent
         else:
-            target = _face_weights(face)
+            target = support.circumcentre_weights()
             if target.min() >= -_DROP_TOL:
                 # The subproblem solution is feasible: take it, then test the KKT
                 # certificate and, if it fails, free the most violated point.
@@ -316,7 +417,7 @@ def min_circle_active_set(points: np.ndarray, verbose: bool = False) -> tuple[fl
                 radius_sq = float(dist_sq[free].max())
                 radius = float(np.sqrt(max(radius_sq, 0.0)))
                 if verbose:
-                    print(f"[{iteration:4d}] support={free.size:3d} radius={radius:.12g}")
+                    print(f"[{iteration:4d}] support={len(free):3d} radius={radius:.12g}")
 
                 worst = int(np.argmax(dist_sq))
                 if dist_sq[worst] <= radius_sq * (1.0 + _FEAS_RTOL) + noise_floor:
@@ -324,7 +425,8 @@ def min_circle_active_set(points: np.ndarray, verbose: bool = False) -> tuple[fl
                     return float(np.ldexp(radius, exponent)), np.ldexp(centre, exponent) + shift
 
                 keep = weights > _DROP_TOL
-                free = np.append(free[keep], worst)
+                _shrink(support, keep)
+                support.insert(worst)
                 weights = np.append(weights[keep], 0.0)
                 continue
 
@@ -343,9 +445,10 @@ def min_circle_active_set(points: np.ndarray, verbose: bool = False) -> tuple[fl
         weights = np.maximum(weights + alpha * step, 0.0)
 
         keep = weights > _DROP_TOL
-        free, weights = free[keep], weights[keep]
+        _shrink(support, keep)
+        weights = weights[keep]
         weights /= weights.sum()
         if verbose:
-            print(f"[{iteration:4d}] support={free.size:3d} drop step={alpha:.6g}")
+            print(f"[{iteration:4d}] support={len(free):3d} drop step={alpha:.6g}")
 
     raise ValueError(f"active-set method did not converge in {iteration_limit} iterations")  # noqa: TRY003
