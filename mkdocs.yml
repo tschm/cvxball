@@ -15,7 +15,7 @@ nav:
   - API Reference: api.md
   # `paper` is a prerequisite of `book` and docs/paper sits inside docs_dir, so the
   # compiled PDF is swept up as a site asset -- no copy step, and nothing to track.
-  - Paper: paper/note.pdf
+  - Paper: paper/seb.pdf
   - Development:
     - Rhiza: development/rhiza.md
   - Reports:

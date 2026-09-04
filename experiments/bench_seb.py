@@ -1,4 +1,4 @@
-"""Benchmark the three smallest-enclosing-ball methods, and print the paper's tables.
+"""Benchmark the four smallest-enclosing-ball methods, and print the paper's tables.
 
 Run with ``uv run --frozen python -m experiments.bench_seb``.
 
@@ -9,11 +9,19 @@ Two things are measured, because either alone would mislead:
   the returned pair -- no timing noise, no machine dependence -- and is the
   honest way to compare an exact method with one that stops at a tolerance.
 - **Time**, reported as a median over repeats. Wall clock compares
-  *implementations*: the active-set method is one vectorised sweep per iteration
-  while Welzl's recursion is a scalar predicate loop, and in CPython that gap
-  flatters the former for reasons that have nothing to do with either algorithm.
-  So Welzl's **basis count** is reported alongside -- the number of circumspheres
-  it computes is a property of the algorithm and the input in any language.
+  *implementations*: the active-set and pivoting methods each do one vectorised
+  sweep per iteration while Welzl's recursion is a scalar predicate loop, and in
+  CPython that gap flatters the former pair for reasons that have nothing to do
+  with any of the algorithms. So a **step count** is reported alongside each of
+  the two combinatorial methods -- the circumspheres Welzl computes, and the
+  pivot steps the Fischer-Gärtner-Kutz method takes. Both are properties of the
+  algorithm and the input in any language.
+
+Note what the two step counts do *not* license: comparing them to each other. A
+Welzl basis is a circumsphere solve over at most ``d + 1`` points; a pivot step is
+a projection plus a sweep over all ``n``. They are each the right way to track one
+method against itself as ``d`` grows, and the wrong way to rank one method against
+the other -- which is what the wall clocks beside them are for.
 
 The dimension sweep exists because the basis count is a high-variance random
 variable: a single seed can put ``d = 10`` below ``d = 9``, and so can a mean
@@ -30,6 +38,8 @@ import numpy as np
 
 from cvxball import min_circle_active_set
 from experiments.clarabel_ball import min_circle_clarabel
+from experiments.fischer_gaertner_kutz import ball_with_counts as fgk_ball
+from experiments.fischer_gaertner_kutz import min_circle_fgk
 from experiments.welzl import ball_with_counts, min_circle_welzl
 
 # Grids small enough to finish in a few minutes, wide enough to show the trends.
@@ -91,34 +101,54 @@ def timed(
 
 
 def main_table() -> None:
-    """Print the enclosure error and timing of all three methods over `MAIN_GRID`."""
+    """Print the enclosure error and timing of all four methods over `MAIN_GRID`.
+
+    The pivoting method runs on every row: unlike Welzl's recursion it does one
+    vectorised sweep per iteration, so nothing about it degrades with `n` the way
+    a scalar predicate loop does, and its iteration count stays in the tens.
+    """
     rng = np.random.default_rng(0)
-    errors = f"{'err_as':>10} {'err_cl':>10} {'err_wz':>10}"
-    seconds = f"{'t_as':>8} {'t_cl':>8} {'t_wz':>8}"
-    print(f"{'n':>7} {'d':>3} | {errors} | {seconds} | {'bases':>7}")
+    errors = f"{'err_as':>10} {'err_fgk':>10} {'err_cl':>10} {'err_wz':>10}"
+    seconds = f"{'t_as':>8} {'t_fgk':>8} {'t_cl':>8} {'t_wz':>8}"
+    print(f"{'n':>7} {'d':>3} | {errors} | {seconds} | {'iters':>6} {'bases':>7}")
     for n, d, run_welzl in MAIN_GRID:
         points = rng.normal(size=(n, d))
         t_as, r_as, c_as = timed(min_circle_active_set, points)
+        t_fg, r_fg, c_fg = timed(min_circle_fgk, points)
         t_cl, r_cl, c_cl = timed(min_circle_clarabel, points)
+        iterations = fgk_ball(points).iterations
         row = (
             f"{n:>7} {d:>3} | "
             f"{enclosure_error(points, r_as, c_as):>10.2e} "
+            f"{enclosure_error(points, r_fg, c_fg):>10.2e} "
             f"{enclosure_error(points, r_cl, c_cl):>10.2e} "
         )
         if run_welzl:
             t_wz, r_wz, c_wz = timed(min_circle_welzl, points)
             bases = ball_with_counts(points).bases
-            row += f"{enclosure_error(points, r_wz, c_wz):>10.2e} | {t_as:>8.3f} {t_cl:>8.3f} {t_wz:>8.3f} | {bases:>7}"
+            row += (
+                f"{enclosure_error(points, r_wz, c_wz):>10.2e} | "
+                f"{t_as:>8.3f} {t_fg:>8.3f} {t_cl:>8.3f} {t_wz:>8.3f} | {iterations:>6} {bases:>7}"
+            )
         else:
-            row += f"{'-':>10} | {t_as:>8.3f} {t_cl:>8.3f} {'-':>8} | {'-':>7}"
+            row += f"{'-':>10} | {t_as:>8.3f} {t_fg:>8.3f} {t_cl:>8.3f} {'-':>8} | {iterations:>6} {'-':>7}"
         print(row)
 
 
 def dimension_sweep() -> None:
-    """Print how Welzl's basis count and time grow with `d`, as medians over seeds."""
-    print(f"\n{'d':>3} | {'bases (med)':>12} {'bases (max)':>12} {'t_wz (med)':>11} {'t_as (med)':>11}")
+    """Print how the work of each combinatorial method grows with `d`, over seeds.
+
+    Welzl's basis count and the pivoting method's iteration count are the two
+    language-independent measures here, and they are what makes the comparison
+    mean anything: both count the algorithm's own steps rather than how fast
+    CPython walks them. The two wall clocks are reported beside them so the gap
+    between a step count and a running time stays visible.
+    """
+    header = f"{'bases (med)':>12} {'bases (max)':>12} {'fgk_it (med)':>13} {'fgk_it (max)':>13}"
+    print(f"\n{'d':>3} | {header} | {'t_wz (med)':>11} {'t_fgk (med)':>12} {'t_as (med)':>11}")
     for d in SWEEP_DIMENSIONS:
         bases, welzl_times, active_times = [], [], []
+        iterations, fgk_times = [], []
         for seed in range(SEEDS):
             points = np.random.default_rng(100 + seed).normal(size=(SWEEP_POINTS, d))
             start = time.perf_counter()
@@ -128,9 +158,15 @@ def dimension_sweep() -> None:
             start = time.perf_counter()
             min_circle_active_set(points)
             active_times.append(time.perf_counter() - start)
+            start = time.perf_counter()
+            min_circle_fgk(points)
+            fgk_times.append(time.perf_counter() - start)
+            iterations.append(fgk_ball(points).iterations)
         print(
             f"{d:>3} | {statistics.median(bases):>12.0f} {max(bases):>12d} "
-            f"{statistics.median(welzl_times):>11.3f} {statistics.median(active_times):>11.4f}"
+            f"{statistics.median(iterations):>13.0f} {max(iterations):>13d} | "
+            f"{statistics.median(welzl_times):>11.3f} {statistics.median(fgk_times):>12.4f} "
+            f"{statistics.median(active_times):>11.4f}"
         )
 
 

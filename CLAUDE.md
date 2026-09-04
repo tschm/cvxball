@@ -18,7 +18,7 @@ to `src/cvxball/` that imports either of them breaks the promise that installing
 this package pulls in NumPy and nothing else. `make deps` (deptry over `src`)
 catches it.
 
-Two *reference* implementations of the same problem live in `experiments/`,
+Three *reference* implementations of the same problem live in `experiments/`,
 which is not installed with the package:
 
 - `experiments/clarabel_ball.py` — the second-order-cone program assembled by
@@ -26,18 +26,32 @@ which is not installed with the package:
   `cvxball.solver`; it moved when clarabel became dev-only.
 - `experiments/welzl.py` — Welzl's randomised incremental algorithm, recursing on
   the boundary set so recursion depth stays at `d + 2`.
+- `experiments/fischer_gaertner_kutz.py` — the Fischer–Gärtner–Kutz pivoting
+  method (ESA 2003): primal-feasible throughout, deflating an enclosing ball by
+  walking the centre towards the circumcentre of an affinely independent support
+  set. Implements the algorithm of the paper's Fig. 2 including both pivot rules
+  (`pivot_rule="bland"` for the one Theorem 1 proves terminating, `"heuristic"`
+  for the faster one the paper's own code uses). It deliberately does *not*
+  reproduce section 4's dynamic QR updates: a Givens sweep in a Python loop would
+  be slower than one vectorised `numpy.linalg.qr`, so it would misrepresent the
+  paper's performance claim rather than demonstrate it. The QR is recomputed each
+  iteration instead. Uses `scipy.linalg.solve_triangular`, which is fine here and
+  would not be inside `src/`.
 
-Both exist to be compared against, and `tests/test_solver.py` imports the
-Clarabel one so CI keeps checking that two independent implementations agree —
-that import is why a root `conftest.py` exists (`pytest.ini` is template-owned
-and carries no `pythonpath`). `experiments/bench_seb.py` produces the tables in
-`docs/paper/note.tex`.
+All three exist to be compared against, and `tests/test_solver.py` imports the
+Clarabel one and the Fischer–Gärtner–Kutz one so CI keeps checking that three
+independent implementations agree — those imports are why a root `conftest.py`
+exists (`pytest.ini` is template-owned and carries no `pythonpath`). Welzl's
+method is *not* under test; it is reached only by the benchmark.
+`experiments/bench_seb.py` produces the tables in `docs/paper/seb.tex`.
 
 Two properties of the active-set code are load-bearing and easy to break:
 it is **scale-invariant** (no tolerance is tied to coordinates of magnitude 1 —
 the affine-rank test runs on edge vectors, the feasibility slack is sized off the
-cloud's extent, and the null-space direction is normalised before it meets a
-weight tolerance) and it is **origin-invariant** (it recentres the cloud first,
+cloud's extent, the null-space direction is normalised before it meets a weight
+tolerance, and the centred cloud is rescaled to unit extent by an exact *power of
+two*, which keeps every squared quantity inside the exponent range that squaring
+halves while moving no bits, so representable answers stay bit-exact) and it is **origin-invariant** (it recentres the cloud first,
 and forms squared distances by differencing before squaring). Both are covered by
 tests; see `tests/test_solver.py::test_active_set_handles_tiny_scales` and
 `::test_active_set_far_from_origin` for what regressions look like.
@@ -63,12 +77,12 @@ Rhiza (then re-sync).
 - `experiments/` — reference implementations and benchmarks. Outside `packages`
   and `testpaths`, so the coverage, docstring and type gates do not reach it;
   `ruff` and `ruff-format` do.
-- `docs/paper/note.tex` — the four-page note, with the benchmark tables. It sits
+- `docs/paper/seb.tex` — the five-page note, with the benchmark tables. It sits
   in the docs tree because that is where rhiza's `paper` task looks: `make paper`
   compiles the root document of `docs/paper/` with tectonic (rerunning until
   cross-references converge) and leaves the PDF beside the source, which is what
   lets `make book` publish it as a site asset with no copy step. `make
-  paper-clean` removes it again. `note.tex` is the only `.tex` at that folder's
+  paper-clean` removes it again. `seb.tex` is the only `.tex` at that folder's
   top level, so it is unambiguously the root document; adding a second one there
   would hand the compile to whichever sorts first unless one is named `main.tex`.
   Both the PDF and the LaTeX aux files are gitignored by the template.

@@ -235,6 +235,28 @@ def min_circle_active_set(points: np.ndarray, verbose: bool = False) -> tuple[fl
     # and the optimality test below then accepts a ball that is visibly too small.
     shift = pts.mean(axis=0)
     pts = pts - shift
+
+    # Recentring fixes the origin but not the magnitude, and this method squares
+    # everything it touches: the Gram matrix, the squared distances, the noise floor.
+    # Squaring halves the usable exponent range, so a cloud of extent 1e-160 -- whose
+    # coordinates are ordinary doubles -- has a Gram matrix of order 1e-320, deep in
+    # the subnormals, and the solve for the circumcentre then overflows to infinity.
+    # The far end fails too, and worse: past 1e+154 the squares saturate and the
+    # method returns a radius of zero rather than raising.
+    #
+    # So normalise the extent to order one.  The factor is a *power of two*, which
+    # makes the rescaling exact in binary floating point: not one bit of the answer
+    # moves, so the method keeps returning representable answers bit-for-bit (see the
+    # example above), and the whole iteration runs where doubles are well behaved.
+    # Measuring the extent as a largest coordinate rather than a largest norm is what
+    # keeps the measurement itself in range -- a norm would already have squared.
+    largest = float(np.abs(pts).max())
+    if largest == 0.0:
+        # Every point is the same point, so the ball is that point with radius zero.
+        return 0.0, shift
+    exponent = int(np.frexp(largest)[1])
+    pts = np.ldexp(pts, -exponent)
+
     sq_norms: np.ndarray = np.einsum("ij,ij->i", pts, pts)
 
     # Warm start with one point and whatever sits farthest from it: that puts both
@@ -284,7 +306,8 @@ def min_circle_active_set(points: np.ndarray, verbose: bool = False) -> tuple[fl
 
                 worst = int(np.argmax(dist_sq))
                 if dist_sq[worst] <= radius_sq * (1.0 + _FEAS_RTOL) + noise_floor:
-                    return radius, centre + shift
+                    # Undo the exact power-of-two normalisation, then the shift.
+                    return float(np.ldexp(radius, exponent)), np.ldexp(centre, exponent) + shift
 
                 keep = weights > _DROP_TOL
                 free = np.append(free[keep], worst)
