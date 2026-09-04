@@ -548,8 +548,11 @@ exact arithmetic past a few hundred dimensions Table~\ref{tab:highd} bears on
 without settling: in double precision the method returns a ball out to
 $d=1.6\cdot10^4$ whose enclosure error is a few ulp, on Gaussian clouds, which are
 not the inputs that reservation was about. The QP machinery is standard~\cite{nocedal2006}. An
-implementation of the method, of the Goldfarb--Idnani core, and of the conic
-front end is available at \url{https://github.com/tschm/cvxball}.
+implementation of the method, of the pivoting method of Section~8, of the
+Goldfarb--Idnani core, and of the conic front end is available at
+\url{https://github.com/tschm/cvxball}, where the two methods this note compares
+ship side by side and the Clarabel and Welzl routes of Table~\ref{tab:bench} sit
+beside them as references.
 
 \begin{thebibliography}{9}
 \footnotesize

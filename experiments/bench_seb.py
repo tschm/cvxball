@@ -47,9 +47,9 @@ from collections.abc import Callable
 import numpy as np
 
 from cvxball import min_circle_active_set
+from cvxball.fischer_gaertner_kutz import ball_with_counts as fgk_ball
+from cvxball.fischer_gaertner_kutz import min_circle_fgk
 from experiments.clarabel_ball import min_circle_clarabel
-from experiments.fischer_gaertner_kutz import ball_with_counts as fgk_ball
-from experiments.fischer_gaertner_kutz import min_circle_fgk
 from experiments.welzl import ball_with_counts, min_circle_welzl
 
 # Grids small enough to finish in a few minutes, wide enough to show the trends.

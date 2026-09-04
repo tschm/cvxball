@@ -10,8 +10,17 @@ from hypothesis.extra.numpy import arrays
 from scipy.optimize import linprog
 
 import cvxball._frame as frame_module
+import cvxball.fischer_gaertner_kutz as fgk_module
 import cvxball.solver as solver_module
-import experiments.fischer_gaertner_kutz as fgk_module
+
+# The Fischer-Gärtner-Kutz pivoting method, the package's second solver. Being
+# shipped, it is under the same obligations as the active-set method -- every
+# shared expectation below runs against both -- and it is also what the active-set
+# method is checked against, because it is primal-feasible throughout: every
+# iterate is already an enclosing ball, where the active-set method reaches
+# feasibility only at the optimum. Two methods that are wrong in the same way
+# would have to be wrong for unrelated reasons.
+from cvxball.fischer_gaertner_kutz import ball_with_counts, min_circle_fgk
 from cvxball.solver import min_circle_active_set
 
 # The Clarabel route is not part of the package any more -- it lives in
@@ -20,13 +29,6 @@ from cvxball.solver import min_circle_active_set
 # strongest check the shipped one has, and the point of moving it was to stop
 # shipping it, not to stop testing against it.
 from experiments.clarabel_ball import min_circle_clarabel
-
-# The Fischer-Gärtner-Kutz pivoting method, likewise from `experiments/`. It earns a
-# place here for the same reason and one more: it is primal-feasible throughout, so
-# every iterate is already an enclosing ball, where the active-set method reaches
-# feasibility only at the optimum. Two methods that are wrong in the same way would
-# have to be wrong for unrelated reasons.
-from experiments.fischer_gaertner_kutz import ball_with_counts, min_circle_fgk
 
 # All three routes share one interface, so the shared expectations below run against each.
 SOLVERS = [min_circle_clarabel, min_circle_active_set, min_circle_fgk]
@@ -304,6 +306,171 @@ def test_fgk_dynamic_qr_survives_dropping_the_origin() -> None:
     # Q must still have orthonormal columns after the update.
     identity = frame.basis.T @ frame.basis
     np.testing.assert_allclose(identity, np.eye(identity.shape[0]), atol=1e-12)
+
+
+def test_fgk_frame_refactorises_back_to_a_single_point() -> None:
+    """A support that shrinks to one point has an empty edge matrix, not a broken one.
+
+    The rebuild path has to produce the ``(d, 0)`` and ``(0, 0)`` pair the frame
+    starts life with, since every consumer of ``Q`` and ``R`` is written against
+    that shape. Reached whenever the last drop of a walk leaves one point behind.
+    """
+    points = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 2.0, 0.0]])
+    frame = fgk_module._Frame(points, 0, dynamic=False)
+    frame.insert(1)
+
+    frame.remove(1)
+
+    assert frame.support == [0]
+    assert frame.basis.shape == (3, 0)
+    assert frame.coefficients(points[0]) == pytest.approx(np.ones(1))
+
+
+@pytest.mark.parametrize(
+    ("routine", "error", "act"),
+    [
+        ("qr_insert", np.linalg.LinAlgError, lambda frame: frame.insert(4)),
+        ("qr_delete", np.linalg.LinAlgError, lambda frame: frame.remove(2)),
+        ("qr_update", ValueError, lambda frame: frame.remove(0)),
+    ],
+    ids=["insert", "delete", "reorigin"],
+)
+def test_fgk_frame_falls_back_when_an_update_is_refused(routine, error, act) -> None:
+    """A refused update is met by rebuilding, and the rebuild is counted.
+
+    scipy's updates decline what an economic ``QR`` cannot represent -- a column
+    already in the span, or a shape its rank-one update will not take. The
+    stability threshold makes that rare rather than impossible, so each of the
+    three update sites has a rebuild behind it. Forcing the refusal is the only
+    way to reach them deliberately; that the counters move is the point, because
+    a fallback that stopped being rare would mean the data structure had stopped
+    paying.
+    """
+
+    def refuse(*_args, **_kwargs):
+        raise error("refused")
+
+    rng = np.random.default_rng(11)
+    points = rng.normal(size=(6, 5))
+    frame = fgk_module._Frame(points, 0, dynamic=True)
+    for index in (1, 2, 3):
+        frame.insert(index)
+
+    with patch.object(fgk_module, routine, refuse):
+        act(frame)
+
+    assert frame.fallbacks == 1
+    assert frame.rebuilds == 1
+    face = points[frame.support]
+    np.testing.assert_allclose(frame.basis @ frame._r, (face[1:] - face[0]).T, atol=1e-12)
+
+
+def test_fgk_frame_drops_the_origin_of_a_two_point_support() -> None:
+    """Re-origining a support of two leaves the survivor with no edges at all.
+
+    The general path deletes a column and applies a rank-one update to re-measure
+    the rest from the promoted point. With nothing left to re-measure there is no
+    update to apply, and the frame has to fall back to the empty pair directly.
+    """
+    points = np.array([[0.0, 0.0], [3.0, 4.0], [1.0, 1.0]])
+    frame = fgk_module._Frame(points, 0, dynamic=True)
+    frame.insert(1)
+
+    frame.remove(0)
+
+    assert frame.support == [1]
+    assert frame.basis.shape == (2, 0)
+
+
+def test_fgk_frame_refuses_a_duplicate_of_its_origin() -> None:
+    """A point coincident with ``q_0`` cannot join the support.
+
+    Its offset has length zero, so the angle test that guards every insertion has
+    no denominator. Duplicated clouds are ordinary input, so this is the guard
+    that keeps them from reaching ``qr_insert`` as a zero column.
+    """
+    points = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 0.0]])
+    frame = fgk_module._Frame(points, 0, dynamic=True)
+
+    assert frame.admits(1)
+    assert not frame.admits(2)
+
+
+def test_fgk_coefficients_fall_back_to_least_squares() -> None:
+    """A singular ``R`` is answered by least squares, not by an exception.
+
+    Back substitution is what the paper does and what the maintained factorisation
+    supports, but a *rebuilt* one can put an exact zero on the diagonal where the
+    updated one keeps it merely small. The two solutions agree wherever the system
+    is solvable at all, which is what makes the rebuild baseline comparable.
+    """
+    points = np.array([[0.0, 0.0], [2.0, 0.0], [0.0, 2.0]])
+    frame = fgk_module._Frame(points, 0, dynamic=True)
+    frame.insert(1)
+    frame.insert(2)
+    centre = np.array([1.0, 1.0])
+
+    exact = frame.coefficients(centre)
+
+    def refuse(*_args, **_kwargs):
+        raise np.linalg.LinAlgError("singular")
+
+    with patch.object(fgk_module, "solve_triangular", refuse):
+        fallback = frame.coefficients(centre)
+
+    assert fallback == pytest.approx(exact)
+    assert points[frame.support].T @ fallback == pytest.approx(centre)
+
+
+def test_fgk_skips_a_candidate_the_factorisation_will_not_take() -> None:
+    """A refused entering point is masked for the rest of the walk, not forced in.
+
+    ``admits`` is the angle test that keeps ``T`` affinely independent, and it can
+    refuse a point the stopping fractions nominated -- the absolute margin of the
+    paper and the reciprocal condition number of the factorisation disagree on a
+    cloud carrying a far outlier. Fig. 2's invariant has no answer to a dependent
+    support, so the walk must drop the candidate and look again.
+
+    The refusal is forced here, on a cloud of triplicated points, because that is
+    the case where it costs nothing: the sibling copy of the refused point enters
+    instead, so the mechanics can be checked against the ball the shipped
+    active-set method returns. Refusing an arbitrary point on an ordinary cloud
+    would change the answer, which is why the guard is an angle test and not a
+    preference.
+    """
+    admits = fgk_module._Frame.admits
+    calls: list[int] = []
+
+    def refuse_once(self, index: int) -> bool:
+        calls.append(index)
+        return False if len(calls) == 1 else bool(admits(self, index))
+
+    points = np.repeat(np.random.default_rng(0).normal(size=(20, 4)), 3, axis=0)
+    with patch.object(fgk_module._Frame, "admits", refuse_once):
+        ball = ball_with_counts(points)
+
+    expected_radius, expected_centre = min_circle_active_set(points)
+    assert calls[1] != calls[0]
+    assert calls[0] not in ball.support
+    assert ball.radius == pytest.approx(expected_radius)
+    assert ball.centre == pytest.approx(expected_centre, abs=1e-12)
+
+
+def test_fgk_bland_rule_drops_the_lowest_indexed_point() -> None:
+    """The two pivot rules choose different points, and each chooses its own.
+
+    Bland's rule is what Theorem 1 proves terminating: among the negative
+    coefficients it takes the point of smallest rank in the fixed order on ``S``,
+    here the index into the input. The heuristic takes the most negative
+    coefficient instead. Given a case where the two disagree, each must pick the
+    point its rule names -- the anti-cycling guarantee is exactly this choice.
+    """
+    coefficients = np.array([0.5, -0.75, -0.25])
+    support = [7, 9, 3]
+
+    assert fgk_module._leaving_point(coefficients, support, "bland") == 2
+    assert fgk_module._leaving_point(coefficients, support, "heuristic") == 1
+    assert fgk_module._leaving_point(np.array([0.5, 0.5]), [1, 2], "bland") is None
 
 
 def test_fgk_rejects_an_unknown_pivot_rule() -> None:

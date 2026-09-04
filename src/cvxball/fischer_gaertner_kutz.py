@@ -1,18 +1,27 @@
-"""The Fischer-Gärtner-Kutz pivoting method, as a reference implementation.
+"""The Fischer-Gärtner-Kutz pivoting method, the second solver this package ships.
 
 Kaspar Fischer, Bernd Gärtner and Martin Kutz, *Fast Smallest-Enclosing-Ball
 Computation in High Dimensions*, ESA 2003, LNCS 2832, 630-641.
 
-Like :mod:`experiments.welzl` and :mod:`experiments.clarabel_ball` this exists to
-be *compared against* rather than used: :func:`cvxball.min_circle_active_set` is
-the solver this package ships. What makes this one worth having is that it is the
-closest published relative of the shipped method and yet reaches the answer from
+:func:`min_circle_fgk` answers the same question as
+:func:`cvxball.min_circle_active_set`, to the same exactness, and reaches it from
 the opposite side. The active-set method works on the *dual* -- a QP over the unit
 simplex, whose iterates are weights -- and its ball encloses the cloud only once
 the KKT test passes. This method is *primal-feasible throughout*: every iterate is
 an honest enclosing ball, and the algorithm deflates it. Hopp and Reeve proposed
 the same picture as a heuristic; the contribution of Fischer et al. is the proof
 of termination, and the pivot rule that makes it hold under degeneracy.
+
+**Which one to call.** Either: they agree on the ball and on the support set, and
+on Gaussian clouds from ``d = 1000`` to ``d = 16000`` they are within a factor of
+1.1 to 1.6 in time (``experiments/bench_seb.py``). The active-set
+method is the default because it is the faster of the two on every row measured
+and returns the dual weights, which are a certificate the caller can check in one
+pass. Call this one when a *feasible* ball matters before convergence -- its
+iterates enclose the cloud and its radius falls monotonically, where the
+active-set radius rises to the answer from below and its ball encloses nothing
+until the last iteration -- or when the support set and pivot counts of
+:func:`ball_with_counts` are what you are after.
 
 The state is a pair ``(c, T)`` carrying the invariant (Fig. 2 of the paper)::
 
@@ -61,13 +70,14 @@ refactorising in ``O(d r^2)``; ``dynamic_qr=False`` selects the rebuild instead,
 which gives the same answers and is the baseline that says what the data
 structure is worth.
 
-Reproducing it is only worthwhile because ``scipy.linalg`` exposes the updates --
-``qr_insert``, ``qr_delete``, ``qr_update`` -- as compiled LAPACK-backed routines.
-Written as a Python loop the Givens sweeps would lose to a single vectorised
-``numpy.linalg.qr``, and the comparison would then measure the interpreter rather
-than the algorithm. That is a dependency this module can take and the shipped
-solver cannot: ``experiments/`` is not installed, so scipy stays a development
-dependency and ``import cvxball`` still pulls in NumPy and nothing else.
+Implementing it at all is only worthwhile because ``scipy.linalg`` exposes the
+updates -- ``qr_insert``, ``qr_delete``, ``qr_update`` -- as compiled
+LAPACK-backed routines. Written as a Python loop the Givens sweeps would lose to a
+single vectorised ``numpy.linalg.qr``, and a measurement of this method against
+the shipped one would then be a measurement of the interpreter. Those three
+routines are already why SciPy is a dependency of this package, for
+:mod:`cvxball._frame`, so this module adds no import that ``import cvxball`` did
+not already pull in.
 
 Both of the paper's pivot rules are here, selected by ``pivot_rule``:
 
@@ -93,7 +103,16 @@ centre in ``conv(T)`` is at most 1/2).
 from typing import Literal, NamedTuple
 
 import numpy as np
-from scipy.linalg import qr_delete, qr_insert, qr_update, solve_triangular
+
+# The three update routines are re-exported from a Cython extension, so the type
+# stubs do not declare them on `scipy.linalg` even though they are there at run
+# time -- the same suppression `cvxball._frame` needs, for the same three names.
+from scipy.linalg import (
+    qr_delete,  # ty: ignore[unresolved-import]
+    qr_insert,  # ty: ignore[unresolved-import]
+    qr_update,  # ty: ignore[unresolved-import]
+    solve_triangular,
+)
 
 from cvxball.solver import _validate
 
@@ -196,7 +215,8 @@ class _Frame:
     @property
     def origin(self) -> np.ndarray:
         """Return ``q_0``, the point every edge is measured from."""
-        return self._points[self.support[0]]
+        point: np.ndarray = self._points[self.support[0]]
+        return point
 
     @property
     def basis(self) -> np.ndarray:
@@ -351,7 +371,8 @@ class _Frame:
             The ``(d,)`` step from ``centre`` to the circumcentre of the support.
         """
         offset = centre - self.origin
-        return self._q @ (self._q.T @ offset) - offset
+        step: np.ndarray = self._q @ (self._q.T @ offset) - offset
+        return step
 
     def coefficients(self, centre: np.ndarray) -> np.ndarray:
         """Express ``centre`` as an affine combination of the support.
@@ -613,7 +634,7 @@ def min_circle_fgk(points: np.ndarray, verbose: bool = False) -> tuple[float, np
         arithmetic, not of which ball the two methods identify.
 
         >>> import numpy as np
-        >>> from experiments.fischer_gaertner_kutz import min_circle_fgk
+        >>> from cvxball import min_circle_fgk
         >>> radius, center = min_circle_fgk(np.array([[0, 0], [1, 0], [0, 1]]))
         >>> round(radius, 12)
         0.707106781187

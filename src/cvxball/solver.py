@@ -6,7 +6,10 @@ points on the ball's boundary.  Each iteration costs one small dense linear
 solve, and it terminates at an exact vertex of the dual feasible set rather than
 at an interior-point tolerance.
 
-It is the only solver this package ships. NumPy carries the method; SciPy
+It is the default of the two solvers this package ships, being the faster on
+every cloud measured and the one that returns a checkable dual;
+:mod:`cvxball.fischer_gaertner_kutz` is the other, and reaches the same answer
+from the primal-feasible side.  NumPy carries the method; SciPy
 carries the factorisation of its support at large `d`, through the compiled
 Givens updates in :mod:`cvxball._frame` -- see :data:`_MAINTAIN_MIN_DIM` for
 where that starts to pay and why it is not used below it.
@@ -15,7 +18,7 @@ second-order-cone program by hand and handing it to Clarabel -- now lives in
 ``experiments/clarabel_ball.py``, because that is what it had become: the
 reference this method is measured against rather than a second way to get an
 answer.  Moving it there is what lets Clarabel be a development dependency, so
-installing this package pulls in NumPy and nothing else.
+installing this package pulls in NumPy, SciPy, and nothing else.
 """
 
 import numpy as np

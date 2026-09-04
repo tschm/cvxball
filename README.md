@@ -28,16 +28,43 @@ points = np.array([[2.0, 4.0], [0, 0], [2.5, 2.0]])
 radius, centre = min_circle_active_set(points)
 ```
 
-### 🔧 The solver
+### 🔧 The solvers
 
-One solver, taking `(points, verbose=False)` and returning `(radius, center)`.
-**NumPy and SciPy are the only dependencies.** SciPy is there for one thing: the compiled Givens updates (`qr_insert`, `qr_delete`, `qr_update`) that let the solver repair its support's factorisation in $O(dr)$ rather than rebuild it in $O(dr^2)$. That is worth 3.5× at $d = 8000$ and nothing below $d \approx 100$, so the solver dispatches on dimension and only takes that route where it pays.
+Two solvers, each taking `(points, verbose=False)` and returning `(radius, center)`.
+**NumPy and SciPy are the only dependencies.** SciPy is there for one thing: the compiled Givens updates (`qr_insert`, `qr_delete`, `qr_update`) that let a solver repair its support's factorisation in $O(dr)$ rather than rebuild it in $O(dr^2)$. That is worth 3.5× at $d = 8000$ and nothing below $d \approx 100$, so `min_circle_active_set` dispatches on dimension and only takes that route where it pays.
 
-The active-set method keeps a *support set* of points held on the ball's
-boundary and repeatedly re-centres the ball on that set, dropping a support
-point whose dual weight would turn negative and adding the farthest point still
-left outside. Each iteration is one small dense solve of size at most the
-ambient dimension, so its cost is driven by $d$ rather than by $n$.
+`min_circle_active_set` — the default. An active-set method on the *dual*: it
+keeps a *support set* of points held on the ball's boundary and repeatedly
+re-centres the ball on that set, dropping a support point whose dual weight would
+turn negative and adding the farthest point still left outside. Each iteration is
+one small dense solve of size at most the ambient dimension, so its cost is driven
+by $d$ rather than by $n$.
+
+`min_circle_fgk` — the pivoting method of [Fischer, Gärtner and
+Kutz](https://people.mpi-inf.mpg.de/alumni/d1/2009/mkutz/pubs/FiGaeKu_SmallEnclBalls.pdf)
+(ESA 2003), which attacks the same geometry from the opposite side: it starts with
+a ball that already encloses everything and deflates it, walking the centre
+towards the circumcentre of a support set. Both of the paper's pivot rules are
+implemented — Bland's, which the termination proof needs, and the faster heuristic
+the paper's own code runs — and so is section 4's dynamic $QR$, with
+`dynamic_qr=False` as the rebuild baseline. `cvxball.ball_with_counts` is its
+fuller signature, returning the support set and the pivot counts beside the ball.
+
+```python
+from cvxball import ball_with_counts, min_circle_fgk
+
+radius, centre = min_circle_fgk(points)
+ball = ball_with_counts(points)  # .support, .iterations, .drops, .insertions
+```
+
+**Which to call.** Either: they agree on the ball and on the support set, and on
+Gaussian clouds from $d = 1000$ to $d = 16000$ they are within a factor of 1.1 to
+1.6 in time. The active-set method is the default because it is the faster of the
+two on every cloud measured, and because its weights are a certificate the caller
+can check in one pass. Reach for the pivoting method when a *feasible* ball
+matters before convergence: its iterates enclose the cloud and its radius falls
+monotonically to the answer, where the active-set radius rises to the answer from
+below and its ball encloses nothing until the final iteration.
 
 Two consequences are worth knowing when picking between them. The active-set
 method stops at an *exact vertex* of the dual feasible set instead of at an
@@ -50,28 +77,23 @@ against 7 s for the same problem handed to an interior-point cone solver.
 
 ### 📐 Reference implementations
 
-Three other routes to the same answer live in [`experiments/`](experiments/),
-where they are what they have become — the references this solver is measured
+Two further routes to the same answer live in [`experiments/`](experiments/),
+where they are what they have become — the references the solvers are measured
 against, not alternative ways to get an answer:
 
 | Module | Approach |
 |---|---|
 | `experiments/clarabel_ball.py` | Assembles the second-order cone program directly and calls [Clarabel](https://clarabel.org), with no modelling-layer canonicalisation in between. |
 | `experiments/welzl.py` | Welzl's randomised incremental algorithm, recursing on the boundary set. |
-| `experiments/fischer_gaertner_kutz.py` | The pivoting method of [Fischer, Gärtner and Kutz](https://people.mpi-inf.mpg.de/alumni/d1/2009/mkutz/pubs/FiGaeKu_SmallEnclBalls.pdf) (ESA 2003): start with a ball that already encloses everything and deflate it, walking the centre towards the circumcentre of a support set. Both of the paper's pivot rules are implemented — Bland's, which the termination proof needs, and the faster heuristic the paper's own code runs. |
 
-The cone program and the pivoting method are exercised by the test suite, which
-checks that those two and the shipped solver agree; Welzl's method is reached
-only through `experiments/bench_seb.py`, which produces the tables in
-[`docs/paper/seb.tex`](docs/paper/seb.tex). None of the three is installed with
-the package, and `clarabel` and `scipy` are development dependencies.
+The cone program is exercised by the test suite, which checks that it and both
+shipped solvers agree; Welzl's method is reached only through
+`experiments/bench_seb.py`, which produces the tables in
+[`docs/paper/seb.tex`](docs/paper/seb.tex). Neither is installed with the package,
+and `clarabel` is a development dependency.
 
-The pivoting method is the interesting neighbour of the shipped solver: it
-attacks the same geometry from the opposite side. The active-set method works
-the dual and is feasible only at the optimum; the pivoting method keeps a valid
-enclosing ball at every step. The cone program remains the more familiar
-formulation, and the one to start from if you want to extend the model with
-further conic constraints.
+The cone program remains the more familiar formulation, and the one to start from
+if you want to extend the model with further conic constraints.
 
 ## 🧮 Background
 
