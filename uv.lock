@@ -334,6 +334,8 @@ source = { editable = "." }
 dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
 
 [package.dev-dependencies]
@@ -355,7 +357,10 @@ test = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "numpy", specifier = ">=2.4.6" }]
+requires-dist = [
+    { name = "numpy", specifier = ">=2.4.6" },
+    { name = "scipy", specifier = ">=1.11" },
+]
 
 [package.metadata.requires-dev]
 dev = [

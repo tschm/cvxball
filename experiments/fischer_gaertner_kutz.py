@@ -106,6 +106,10 @@ _AFF_RTOL = 1e-13
 # Affine coefficients are dimensionless and, by Lemma 2, at most 1/2 in the
 # optimal configuration -- so this needs no scaling, unlike the margin above.
 _COEFF_TOL = 1e-13
+# The smallest angle, as a reciprocal condition number, at which a point may join
+# the support. `qr_insert` refuses anything below roughly machine epsilon here;
+# this sits far enough above that the update never has to be second-guessed.
+_RCOND_FLOOR = 1e-12
 # Two stopping points count as tied, and so as competing under the pivot rule,
 # when their stopping fractions agree to this much.
 _TIE_RTOL = 1e-10
@@ -181,6 +185,11 @@ class _Frame:
         self._dynamic = dynamic
         self.support = [origin]
         self.rebuilds = 0
+        # Updates that could not be applied and were refactorised instead. The
+        # stability threshold makes a dependent insert rare but does not make it
+        # impossible: it bounds the entering point's distance from aff(T) from
+        # below, which is a weaker statement than scipy's condition-number test.
+        self.fallbacks = 0
         self._q: np.ndarray = np.zeros((points.shape[1], 0))
         self._r: np.ndarray = np.zeros((0, 0))
 
@@ -241,8 +250,16 @@ class _Frame:
             self._q = (column / length)[:, None]
             self._r = np.array([[length]])
         else:
-            self._q, self._r = qr_insert(self._q, self._r, column, self._r.shape[1], which="col")
-            self._economise()
+            try:
+                self._q, self._r = qr_insert(self._q, self._r, column, self._r.shape[1], which="col")
+            except np.linalg.LinAlgError:
+                # The column is already in the span of Q, so no economic
+                # factorisation can hold it. Rebuilding always can: numpy's QR
+                # accepts a rank-deficient matrix and simply returns a singular R.
+                self.fallbacks += 1
+                self._refactorise()
+            else:
+                self._economise()
 
     def remove(self, position: int) -> None:
         """Drop the support point at ``position``, repairing the factorisation.
@@ -258,9 +275,14 @@ class _Frame:
 
         if position > 0:
             # An ordinary column, sitting at position - 1 of the edge matrix.
-            self._q, self._r = qr_delete(self._q, self._r, position - 1, which="col")
             del self.support[position]
-            self._economise()
+            try:
+                self._q, self._r = qr_delete(self._q, self._r, position - 1, which="col")
+            except np.linalg.LinAlgError:
+                self.fallbacks += 1
+                self._refactorise()
+            else:
+                self._economise()
             return
 
         # The origin leaves, so q_1 is promoted and every edge is re-measured from
@@ -271,13 +293,49 @@ class _Frame:
         if remaining == 0:
             self._q = np.zeros((self._points.shape[1], 0))
             self._r = np.zeros((0, 0))
+            del self.support[0]
         else:
-            self._q, self._r = qr_delete(self._q, self._r, 0, which="col")
-            self._q = self._q[:, :remaining]
-            self._r = self._r[:remaining, :remaining]
-            self._q, self._r = qr_update(self._q, self._r, -first_edge, np.ones(remaining))
-        del self.support[0]
-        self._economise()
+            del self.support[0]
+            try:
+                self._q, self._r = qr_delete(self._q, self._r, 0, which="col")
+                self._q = self._q[:, :remaining]
+                self._r = self._r[:remaining, :remaining]
+                self._q, self._r = qr_update(self._q, self._r, -first_edge, np.ones(remaining))
+            except (np.linalg.LinAlgError, ValueError):
+                self.fallbacks += 1
+                self._refactorise()
+            else:
+                self._economise()
+
+    def admits(self, index: int) -> bool:
+        """Report whether ``points[index]`` can join the support safely.
+
+        The paper's stability threshold is absolute -- it asks that the entering
+        point sit some distance from ``aff(T)`` measured against the cloud's
+        extent. A factorisation cares about something else: the *angle*, i.e. that
+        distance relative to the entering column's own length, which is exactly
+        the reciprocal condition number ``qr_insert`` tests. The two disagree on a
+        cloud carrying a far outlier, where a point can clear the absolute margin
+        and still be numerically inside the span.
+
+        Testing what the factorisation tests is what keeps the two in step. It
+        matters more here than it would for the shipped solver, because this
+        algorithm has no answer to a dependent support -- Fig. 2's invariant
+        requires ``T`` affinely independent, and there is no null-space descent
+        step to fall back on.
+
+        Args:
+            index: Index into the cloud of the candidate point.
+
+        Returns:
+            ``True`` when the candidate is safely off ``aff(T)``.
+        """
+        offset = self._points[index] - self.origin
+        length = float(np.linalg.norm(offset))
+        if length == 0.0:
+            return False
+        residual = offset - self._q @ (self._q.T @ offset)
+        return bool(float(np.linalg.norm(residual)) / length > _RCOND_FLOOR)
 
     def direction_to_circumcentre(self, centre: np.ndarray) -> np.ndarray:
         """Return ``cc(T) - centre``, the walking direction.
@@ -495,23 +553,33 @@ def ball_with_counts(
             out=fractions,
             where=stoppers,
         )
-        shortest = float(fractions.min())
+        # Walk to the nearest stopper the support can actually take. A candidate
+        # that fails `admits` is numerically inside aff(T): taking it would break
+        # the affine independence Fig. 2's invariant rests on, so it is passed
+        # over and the next-nearest considered. Usually the first one is fine.
+        while True:
+            shortest = float(fractions.min())
+            if shortest >= 1.0:
+                # Nothing stops the walk: the centre reaches cc(T) and lands on the hull.
+                centre = centre + direction
+                on_hull = True
+                if verbose:
+                    radius = float(np.linalg.norm(pts[support] - centre, axis=1).max())
+                    print(f"[{iteration:4d}] arrive    support={len(support):3d} radius={radius:.12g}")
+                break
 
-        if shortest >= 1.0:
-            # Nothing stops the walk: the centre reaches cc(T) and lands on the hull.
-            centre = centre + direction
-            on_hull = True
-            if verbose:
-                radius = float(np.linalg.norm(pts[support] - centre, axis=1).max())
-                print(f"[{iteration:4d}] arrive    support={len(support):3d} radius={radius:.12g}")
-        else:
             entering = _entering_point(fractions, shortest, pts, frame, pivot_rule)
+            if not frame.admits(entering):
+                fractions[entering] = np.inf
+                continue
+
             centre = centre + shortest * direction
             frame.insert(entering)
             insertions += 1
             if verbose:
                 radius = float(np.linalg.norm(pts[support] - centre, axis=1).max())
                 print(f"[{iteration:4d}] insert    support={len(support):3d} radius={radius:.12g} step={shortest:.6g}")
+            break
 
     raise ValueError(f"pivoting method did not converge in {limit} iterations")  # noqa: TRY003
 
