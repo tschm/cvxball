@@ -37,11 +37,14 @@ which is not installed with the package:
   walking the centre towards the circumcentre of an affinely independent support
   set. Implements the algorithm of the paper's Fig. 2 including both pivot rules
   (`pivot_rule="bland"` for the one Theorem 1 proves terminating, `"heuristic"`
-  for the faster one the paper's own code uses). It deliberately does *not*
-  reproduce section 4's dynamic QR updates: a Givens sweep in a Python loop would
-  be slower than one vectorised `numpy.linalg.qr`, so it would misrepresent the
-  paper's performance claim rather than demonstrate it. The QR is recomputed each
-  iteration instead. Uses `scipy.linalg.solve_triangular`, which is fine here and
+  for the faster one the paper's own code uses). Section 4's dynamic QR is here
+  too: `_Frame` carries `Q` and `R` for the edge matrix across pivots and repairs
+  them in `O(dr)`, and `dynamic_qr=False` selects the rebuild instead as the
+  baseline that says what the data structure is worth. Reproducing it is only
+  honest because `scipy.linalg` exposes `qr_insert`, `qr_delete` and `qr_update`
+  as compiled routines — written as a Python loop the Givens sweeps would lose to
+  one vectorised `numpy.linalg.qr` and would misstate the paper's claim rather
+  than test it. Uses `scipy.linalg.solve_triangular` too, which is fine here and
   would not be inside `src/`.
 
 All three exist to be compared against, and `tests/test_solver.py` imports the
@@ -83,7 +86,7 @@ Rhiza (then re-sync).
 - `experiments/` — reference implementations and benchmarks. Outside `packages`
   and `testpaths`, so the coverage, docstring and type gates do not reach it;
   `ruff` and `ruff-format` do.
-- `docs/paper/seb.tex` — the five-page note, with the benchmark tables. It sits
+- `docs/paper/seb.tex` — the six-page note, with the benchmark tables. It sits
   in the docs tree because that is where rhiza's `paper` task looks: `make paper`
   compiles the root document of `docs/paper/` with tectonic (rerunning until
   cross-references converge) and leaves the PDF beside the source, which is what
