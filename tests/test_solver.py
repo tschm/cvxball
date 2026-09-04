@@ -243,6 +243,68 @@ def test_fgk_centre_lies_in_the_hull_of_its_support() -> None:
     assert result.status == 0, "centre is not a convex combination of the support"
 
 
+@pytest.mark.parametrize("cloud", ["gaussian", "cospherical", "duplicated", "flat"])
+def test_fgk_dynamic_qr_matches_refactorising(cloud: str) -> None:
+    """Maintaining the factorisation across pivots gives the same ball as rebuilding.
+
+    :class:`_Frame` repairs ``Q`` and ``R`` in place as points enter and leave the
+    support, which is section 4 of the paper and what makes the method usable at
+    the dimensions it was written for. ``dynamic_qr=False`` refactorises instead.
+    The two are different arithmetic reaching the same combinatorial answer, so
+    the support sets must agree exactly and the radii to near machine precision.
+
+    The awkward update is dropping the *origin*: no column of the edge matrix
+    corresponds to it, so it becomes a column deletion plus a rank-one update.
+    Cospherical and duplicated clouds are here because they are what drive drops.
+    """
+    rng = np.random.default_rng(4)
+    points = rng.normal(size=(180, 7))
+    if cloud == "cospherical":
+        points /= np.linalg.norm(points, axis=1, keepdims=True)
+    elif cloud == "duplicated":
+        points = np.repeat(points[:20], 9, axis=0)
+    elif cloud == "flat":
+        points[:, 4:] = 0.0
+
+    dynamic = ball_with_counts(points, dynamic_qr=True)
+    rebuilt = ball_with_counts(points, dynamic_qr=False)
+
+    # Compare the support *points*, not their indices: on a cloud carrying nine
+    # copies of every row the two paths may name different copies of the same
+    # point, which is not a disagreement about the ball.
+    dynamic_rows = sorted(tuple(np.round(row, 12)) for row in points[dynamic.support])
+    rebuilt_rows = sorted(tuple(np.round(row, 12)) for row in points[rebuilt.support])
+
+    assert dynamic_rows == rebuilt_rows
+    assert dynamic.radius == pytest.approx(rebuilt.radius, rel=1e-10)
+    assert dynamic.centre == pytest.approx(rebuilt.centre, abs=1e-10 * max(rebuilt.radius, 1.0))
+
+
+def test_fgk_dynamic_qr_survives_dropping_the_origin() -> None:
+    """The re-origining update keeps ``QR`` equal to the edge matrix it stands for.
+
+    Dropping support position 0 is the one update with no column to delete, so it
+    is done as a deletion plus a rank-one correction. This drives a frame through
+    inserts and an origin drop and checks the invariant directly, rather than only
+    through the ball that comes out.
+    """
+    rng = np.random.default_rng(9)
+    points = rng.normal(size=(6, 5))
+    frame = fgk_module._Frame(points, 0, dynamic=True)
+    for index in range(1, 5):
+        frame.insert(index)
+
+    frame.remove(0)
+
+    face = points[frame.support]
+    edges = (face[1:] - face[0]).T
+    assert frame.basis.shape == (5, len(frame.support) - 1)
+    np.testing.assert_allclose(frame.basis @ frame._r, edges, atol=1e-12)
+    # Q must still have orthonormal columns after the update.
+    identity = frame.basis.T @ frame.basis
+    np.testing.assert_allclose(identity, np.eye(identity.shape[0]), atol=1e-12)
+
+
 def test_fgk_rejects_an_unknown_pivot_rule() -> None:
     """A misspelled rule fails loudly rather than silently picking a default."""
     with pytest.raises(ValueError, match="pivot_rule must be"):
@@ -363,6 +425,43 @@ def test_active_set_dependent_and_dropping() -> None:
 
     _assert_is_minimal_ball(points, radius, center)
     assert radius == pytest.approx(min_circle_clarabel(points)[0], abs=1e-6)
+
+
+@pytest.mark.parametrize(
+    ("face", "expected"),
+    [
+        # m - 1 <= d, affinely independent: the cheap reduced path, no null directions.
+        (np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]), 0),
+        # m - 1 <= d, affinely dependent: three collinear points in space.
+        (np.array([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0], [2.0, 2.0, 2.0]]), 1),
+        # m - 1 > d: five points in the plane. Here the reduced left factor is 4 x 2
+        # and stops one column short, so an unguarded reduced SVD reports *no* null
+        # directions and the caller then solves a singular system.
+        (np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [2.0, 3.0]]), 2),
+        # m - 1 > d in one dimension, the tightest form of the same thing.
+        (np.array([[0.0], [1.0], [2.0]]), 1),
+    ],
+    ids=["independent", "dependent", "wider-support", "one-dimensional"],
+)
+def test_affine_null_space_spans_when_the_support_outgrows_the_dimension(face, expected) -> None:
+    """The null space is complete whether or not the support fits inside ``d``.
+
+    :func:`_affine_null_space` reads only the left factor of the SVD, so it asks for
+    the reduced decomposition -- the full one would build and discard a ``d x d``
+    right factor, which is the dominant cost of the whole solver at large ``d``. That
+    substitution is exact only while ``edges`` is no taller than it is wide, and the
+    support does reach ``d + 2`` points between a drop and the following add. The last
+    two cases are that situation: an unguarded reduced SVD returns zero null
+    directions for both, silently reclassifying a degenerate face as independent.
+    """
+    null_space = solver_module._affine_null_space(face)
+
+    assert null_space.shape == (len(face), expected)
+    for column in null_space.T:
+        # A null direction reshuffles the weights without moving the centre, so it
+        # must sum to zero and be annihilated by the points.
+        assert column.sum() == pytest.approx(0.0, abs=1e-12)
+        assert face.T @ column == pytest.approx(np.zeros(face.shape[1]), abs=1e-12)
 
 
 def test_active_set_is_exact_on_cospherical_points() -> None:
