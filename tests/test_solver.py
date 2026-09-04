@@ -272,10 +272,10 @@ def test_fgk_dynamic_qr_matches_refactorising(cloud: str) -> None:
     # Compare the support *points*, not their indices: on a cloud carrying nine
     # copies of every row the two paths may name different copies of the same
     # point, which is not a disagreement about the ball.
-    def rows(support):
-        return sorted(tuple(np.round(row, 12)) for row in points[support])
+    dynamic_rows = sorted(tuple(np.round(row, 12)) for row in points[dynamic.support])
+    rebuilt_rows = sorted(tuple(np.round(row, 12)) for row in points[rebuilt.support])
 
-    assert rows(dynamic.support) == rows(rebuilt.support)
+    assert dynamic_rows == rebuilt_rows
     assert dynamic.radius == pytest.approx(rebuilt.radius, rel=1e-10)
     assert dynamic.centre == pytest.approx(rebuilt.centre, abs=1e-10 * max(rebuilt.radius, 1.0))
 
