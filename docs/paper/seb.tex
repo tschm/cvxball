@@ -44,7 +44,56 @@ weights, which are the conic dual of the second-order cone formulation after one
 rescaling and hence a certificate the caller can check independently.
 \end{abstract}
 
+\section{Introduction}
+\label{sec:intro}
+
+Sylvester stated the problem in 1857 in a single sentence~\cite{sylvester1857}:
+given a finite set of points in the plane, find the smallest circle containing
+all of them. It has been a standard example ever since --- short enough to state
+in a line, geometric enough to draw, and just hard enough that the obvious
+algorithms are wrong. It is the $1$-centre facility location problem, where one
+facility is placed so that the farthest customer travels as little as possible.
+It is the primitive under bounding-sphere hierarchies in graphics and collision
+detection. As the minimum enclosing ball of a set of feature vectors it is the
+core-set problem behind kernel machines. And it is a fixture of solver
+documentation: Hexaly ships it as a modelling template, in which the centre's
+coordinates are the decision variables and the radius is an intermediate
+expression built from \texttt{sqrt}, \texttt{pow} and \texttt{max}, minimised
+directly~\cite{hexaly}; CGAL ships it as \texttt{Min\_sphere\_d}, which is
+Welzl's recursion with the move-to-front heuristic for small inputs and
+G\"artner's method for large ones.
+
+The algorithmic history is largely a computational-geometry one, and largely the
+work of two people. Welzl's randomised incremental method~\cite{welzl1991} solves
+it in expected $O(n)$ time for fixed $d$, recursing over subsets with a few points
+forced onto the boundary; the constant grows superexponentially in $d$, and much
+of what followed is a response to that. G\"artner's robust
+implementation~\cite{gaertner1999} addressed the fragility of the recursion's
+predicates in floating point, and is the other half of what CGAL runs.
+G\"artner and
+Sch\"onherr~\cite{gaertner2000} recast the problem as a quadratic program and
+solved it exactly, reserving judgment past a few hundred dimensions. Fischer,
+G\"artner and Kutz~\cite{fischer2003} then left the recursion behind altogether
+for a pivoting method that deflates an enclosing ball, carrying a dynamic $QR$ of
+the support's edge matrix and reporting $d$ in the thousands. Elzinga and
+Hearn~\cite{elzinga1972} had given a finite algorithm of that second kind two
+decades before Welzl.
+
+What returned me to the problem was a pair of recent experiments with active-set
+methods elsewhere: the Goldfarb--Idnani dual method for strictly convex quadratic
+programs, whose invariants hold under bound constraints and quietly stop holding
+under general ones~\cite{schmelzer2026gi}, and a conjugate-gradient solver wrapped
+in a primal--dual active-set loop for non-negativity
+constraints~\cite{schmelzer2026nncg}. The smallest enclosing ball is that same
+machinery on the simplest feasible set there is. Its dual is a concave quadratic
+over the unit simplex; the active set is the set of points on the boundary
+sphere; and the certificate is geometric rather than algebraic --- the points
+carrying weight are exactly the points at distance $R$, which a caller can check
+in one pass. That is what makes it worth writing down separately, and what the
+rest of this note does.
+
 \section{The problem and its dual}
+\label{sec:dual}
 
 For $S=\{p_1,\dots,p_n\}\subset\R^d$ the smallest enclosing ball is the solution of
 \begin{equation}
@@ -112,6 +161,7 @@ most $d+1$, so~\eqref{eq:primal} is determined by at most $d+1$ of the $n$ point
 and the problem is combinatorial in the choice of that subset.
 
 \section{The method}
+\label{sec:method}
 
 Maintain a working set $F$ and weights $u>0$ on it summing to one.
 
@@ -178,6 +228,7 @@ that
 so the farthest violator is the fixed variable with the largest reduced gradient.
 
 \section{Invariance}
+\label{sec:invariance}
 
 Two properties are load-bearing and easily lost. Both are consequences of
 refusing any tolerance tied to coordinates of magnitude one.
@@ -207,6 +258,7 @@ to unit extent removes both, and the factor must be a power of two: any other
 rounds, and the exactness Table~\ref{tab:bench} reports is lost with it.
 
 \section{Cost, and the dual as a certificate}
+\label{sec:cost}
 
 Per iteration the method performs one $O(nd)$ sweep of squared distances and one
 dense solve of order at most $d$; nothing of size $n$ is ever factorised. This is
@@ -243,11 +295,12 @@ from~\eqref{eq:kkt} at the cost of one pass over the data, without re-solving.
 \end{remark}
 
 \section{A numerical comparison}
+\label{sec:numerics}
 
 Table~\ref{tab:bench} compares the method with Clarabel~0.11.1
 applied to~\eqref{eq:primal}, with Welzl's algorithm~\cite{welzl1991}, and with
 the pivoting method of Fischer, G\"artner and Kutz~\cite{fischer2003} discussed
-in Section~8, on Gaussian clouds. Two quantities are reported, because either
+in Section~\ref{sec:fgk}, on Gaussian clouds. Two quantities are reported, because either
 alone would mislead.
 
 The first is the relative enclosure error $\max_i\norm{p_i-x}/R-1$, where a
@@ -260,7 +313,7 @@ distance over its own support. The exactness is thus a property of terminating a
 a basis, not of this method in particular.
 
 One ulp of that is worth naming, since it is the only place the three separate.
-The method of Section~2 solves afresh for the circumcentre of its final support
+The method of Section~\ref{sec:method} solves afresh for the circumcentre of its final support
 and lands on zero; the pivoting method reports the running sum of the walks that
 carried its centre there, and so shows a single positive ulp on four of the seven
 rows. Both identify the same support set. The difference is in the arithmetic
@@ -270,7 +323,7 @@ because a column of exact zeros beside a column of ulps invites the wrong
 inference.
 
 The second is wall-clock time, and it must be read as a comparison of
-\emph{implementations}. The method of Section~2 and the pivoting method each
+\emph{implementations}. The method of Section~\ref{sec:method} and the pivoting method each
 spend their time in one vectorised sweep per iteration, whereas Welzl's recursion
 evaluates a containment predicate per step in scalar Python; a good deal of the
 gap in the $t$ columns is CPython against NumPy rather than one algorithm against
@@ -387,7 +440,7 @@ handed a program of $n(d+1)\approx1.6\cdot10^7$ rows to factor. Both methods tha
 remain carry the $QR$ of their support's edge matrix across pivots and repair it in
 $O(dr)$ as points enter and leave, in place of rebuilding it in $O(dr^2)$:
 section~4 of~\cite{fischer2003} for the pivoting method, and the same three
-compiled Givens updates for the method of Section~2, which is what lets it appear
+compiled Givens updates for the method of Section~\ref{sec:method}, which is what lets it appear
 in this table at all. Repairing is not free everywhere --- measured on these
 clouds it is worth a factor of $3.5$ at $d=8\,000$, is at parity near $d=100$, and
 loses below that, where the per-update overhead exceeds the small dense solve it
@@ -439,6 +492,7 @@ implementations chosen for clarity is the weakest possible claim, and the only o
 made here.
 
 \section{Relation to the minimum-norm point problem}
+\label{sec:minnorm}
 
 If all points have equal norm $\rho$ --- after the standard lift of a kernel
 problem onto a sphere, say --- then~\eqref{eq:phi} reduces to
@@ -451,6 +505,7 @@ $\sum_iu_i\norm{p_i}^2$ gives the general case, and is what makes the subproblem
 a circumcentre rather than a projection.
 
 \section{Relation to Welzl's algorithm}
+\label{sec:welzl}
 
 Welzl's randomised incremental method~\cite{welzl1991} computes the same object
 and, as Table~\ref{tab:bench} confirms, terminates at an exact basis just as the
@@ -461,12 +516,12 @@ random, solving without it, and re-solving with $p$ forced onto the boundary whe
 $p$ falls outside the ball just computed. The permutation drives the recursion,
 the only arithmetic is the primitive that circumscribes at most $d+1$ points, and
 the analysis is that of LP-type problems --- expected $O(n)$ time for fixed $d$,
-with a constant known to grow superexponentially in $d$. The method of Section~2
+with a constant known to grow superexponentially in $d$. The method of Section~\ref{sec:method}
 searches instead by ascent on $\varphi$: the weights choose the pivot, a negative
 barycentric coordinate calling for a drop and the farthest violator for an
 addition. The search is monotone, local, deterministic, and admits add
 \emph{and} drop steps; what it does not admit is an expected-time bound, and
-Section~2 claims none.
+Section~\ref{sec:method} claims none.
 
 Table~\ref{tab:sweep} is the practical shape of that difference: at fixed $n$ the
 recursion's cost climbs by a factor of two or so per dimension and carries a long
@@ -480,9 +535,10 @@ whereas here they \emph{are} the search --- which is also why a support set warm
 starts a perturbed cloud and a fresh random permutation cannot.
 
 G\"artner's robust implementation~\cite{gaertner1999} addresses the fragility of
-the recursion's predicates; Section~3 answers the same question here.
+the recursion's predicates; Section~\ref{sec:invariance} answers the same question here.
 
 \section{Relation to the pivoting method of Fischer, G\"artner and Kutz}
+\label{sec:fgk}
 
 The other exact method in wide use~\cite{fischer2003} shares this one's support
 set and its drop criterion, and differs from it in the direction of approach.
@@ -499,7 +555,7 @@ face exactly and none is feasible for the whole problem until the last.
 
 The pivots differ accordingly. They never take a full step: the centre walks
 along $[c,\mathrm{cc}(T)]$ and is truncated by whichever point first touches the
-shrinking sphere, which is also the point that enters $T$. Section~2 takes the
+shrinking sphere, which is also the point that enters $T$. Section~\ref{sec:method} takes the
 whole step to $\mathrm{cc}(F)$ and only then consults the data, admitting the
 farthest violator. The criterion for leaving is the same in both --- a negative
 barycentric coordinate --- but the mechanics are not: a ratio test in weight
@@ -507,14 +563,14 @@ space here, immediate removal and a resumed walk there.
 
 Degeneracy is the sharpest split. Their invariant requires $T$ affinely
 independent and their implementation defends it, admitting a stopping point only
-when it is not too close to $\aff(T)$. Section~2 permits dependence and answers
+when it is not too close to $\aff(T)$. Section~\ref{sec:method} permits dependence and answers
 it, with a descent direction in the null space. Neither is the better choice in
 general: theirs avoids a case, this one resolves it.
 
 Their linear algebra came first, and it is what decides the regime either method
 is good for. They never refactorise --- a dynamic $QR$ of the edge matrix, updated
 by Givens rotations in $O(d^2)$ per insertion, exploiting that $\mathrm{cc}(T)$ is
-the orthogonal projection of $c$ onto $\aff(T)$. Section~2 now carries the same
+the orthogonal projection of $c$ onto $\aff(T)$. Section~\ref{sec:method} now carries the same
 factorisation, above the dimension where the compiled updates start to pay for
 themselves, and reads three quantities off its triangular factor $R$ instead of
 the points: $DD\T=R\T R$ makes~\eqref{eq:sub} two triangular solves, $\ker D\T$ is
@@ -522,7 +578,7 @@ $\ker R$, and the right-hand side is the squared column norms of $R$. What the t
 ask of the factorisation still differs --- a projection of $c$ there, barycentric
 weights here, which this method needs anyway as its certificate --- and so does
 what they tolerate: an economic $QR$ cannot represent a dependent support, so the
-degenerate faces Section~2 permits are met by refactorising, which is affordable
+degenerate faces Section~\ref{sec:method} permits are met by refactorising, which is affordable
 only because they are rare. Table~\ref{tab:highd} is the two methods with that
 structure in place on both sides, out to $d=1.6\cdot10^4$, past the $2\,000$ their
 paper reports: the same support on every row, a factor of two between the step
@@ -538,17 +594,17 @@ here is at its most accurate. Both can hold at once --- theirs is a claim about
 iteration counts, this one about the final answer.
 
 \section{Notes}
+\label{sec:notes}
 
-The problem is Sylvester's~\cite{sylvester1857}; Elzinga and
-Hearn~\cite{elzinga1972} gave an early finite algorithm of this type, and
-Sections~7 and~8 place it against the two exact lines of work that followed. Of
-those this method is of the quadratic-programming one, after G\"artner and
+Of the two exact lines of work Section~\ref{sec:intro} sketches, and
+that Sections~\ref{sec:welzl} and~\ref{sec:fgk} place this method against, this
+one is of the quadratic-programming kind, after G\"artner and
 Sch\"onherr~\cite{gaertner2000}, whose reservation that a QP formulation needed
 exact arithmetic past a few hundred dimensions Table~\ref{tab:highd} bears on
 without settling: in double precision the method returns a ball out to
 $d=1.6\cdot10^4$ whose enclosure error is a few ulp, on Gaussian clouds, which are
 not the inputs that reservation was about. The QP machinery is standard~\cite{nocedal2006}. An
-implementation of the method, of the pivoting method of Section~8, of the
+implementation of the method, of the pivoting method of Section~\ref{sec:fgk}, of the
 Goldfarb--Idnani core, and of the conic front end is available at
 \url{https://github.com/tschm/cvxball}, where the two methods this note compares
 ship side by side and the Clarabel and Welzl routes of Table~\ref{tab:bench} sit
@@ -571,8 +627,15 @@ beside them as references.
 \bibitem{goldfarb1983} D.~Goldfarb and A.~Idnani. A numerically stable dual
   method for solving strictly convex quadratic programs. \emph{Mathematical
   Programming} 27:1--33, 1983.
+\bibitem{hexaly} Hexaly. Smallest circle problem. Modelling template,
+  \url{https://www.hexaly.com/templates/smallest-circle-problem}, accessed
+  September 2026.
 \bibitem{nocedal2006} J.~Nocedal and S.~J.~Wright. \emph{Numerical
   Optimization}, 2nd ed. Springer, 2006.
+\bibitem{schmelzer2026gi} T.~Schmelzer and M.~Stoll. Goldfarb--Idnani revisited:
+  invariants, certificates, and the limits of guessing. arXiv:2608.30933, 2026.
+\bibitem{schmelzer2026nncg} T.~Schmelzer and M.~Stoll. Non-negative conjugate
+  gradients. arXiv:2607.22121, 2026.
 \bibitem{sylvester1857} J.~J.~Sylvester. A question in the geometry of
   situation. \emph{Quarterly Journal of Pure and Applied Mathematics} 1:79, 1857.
 \bibitem{frank1956} M.~Frank and P.~Wolfe. An algorithm for quadratic
