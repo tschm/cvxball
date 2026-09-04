@@ -178,10 +178,16 @@ Read forwards,~\eqref{eq:kkt} is a search for weights: keep a set of points on t
 sphere, adjust the weights on it, and stop when no point lies outside. Read
 backwards it is a search for balls: keep a ball that already contains $S$ with a
 set $T$ on its boundary, and shrink it until its centre falls inside $\conv T$.
-The second reading is Seidel's lemma, which Fischer, G\"artner and
-Kutz~\cite{fischer2003} take as their Lemma~1: a ball through $T$ containing $S$
-is the smallest enclosing ball exactly when its centre is the circumcentre
-$\mathrm{cc}(T)$ \emph{and} lies in $\conv T$. Sections~\ref{sec:method} and~\ref{sec:fgk} are those two readings made into
+The second reading rests on a fact due to Seidel, recorded
+in~\cite{gaertner2000} and taken as Lemma~1 by Fischer, G\"artner and
+Kutz~\cite{fischer2003}: if $T$ lies on the boundary of a ball $B$ with centre
+$c$, then $B$ is the smallest ball enclosing $T$ if and only if $c\in\conv T$.
+That is a stopping certificate for $S$ as well. If in addition $S\subseteq B$
+then $B\supseteq\mathrm{seb}(S)$, while $T\subseteq S$ gives
+$\mathrm{seb}(T)\subseteq\mathrm{seb}(S)$; with $B=\mathrm{seb}(T)$ the two
+inclusions close, and $B=\mathrm{seb}(S)$ by uniqueness. So a ball containing the
+cloud, carrying $T$ on its boundary, and centred inside $\conv T$ is \emph{the}
+answer --- and $\conv T$ is the only thing left to check. Sections~\ref{sec:method} and~\ref{sec:fgk} are those two readings made into
 methods --- the second being theirs. They keep the same
 kind of state --- a subset of $S$ that will end up on the boundary, and a point in
 its affine hull --- and differ in which feasibility they refuse to give up. The
@@ -282,8 +288,10 @@ centre and a support set, subject to the invariant of their Fig.~2:
   T\ \text{affinely independent},
 \end{equation}
 where $B(c,T)$ is the ball about $c$ through the farthest point of $T$. By
-Seidel's lemma the pair is optimal exactly when $c=\mathrm{cc}(T)$ and
-$c\in\conv T$, so the loop runs until $c$ reaches $\conv T$. Each iteration is a
+Seidel's lemma the pair is optimal as soon as $c\in\conv T$, and $c$ is then the
+circumcentre $\mathrm{cc}(T)$ without further argument --- it lies in $\aff(T)$
+and~\eqref{eq:fgk-invariant} has it equidistant from $T$. So the loop runs until
+$c$ reaches $\conv T$. Each iteration is a
 dropping phase, entered only once $c$ has landed in $\aff(T)$, followed by a
 walking phase.
 
