@@ -5,7 +5,10 @@ ref: v1.7.2
 include: []
 exclude:
 - .github/CONFIG.md
-templates: []
+- .github/rulesets/main-branch-protection.json
+- .github/rulesets/tag-protection.json
+templates:
+- github-paper
 profiles:
 - github-project
 files:
@@ -13,14 +16,13 @@ files:
 - .editorconfig
 - .github/dependabot.yml
 - .github/release.yml
-- .github/rulesets/main-branch-protection.json
-- .github/rulesets/tag-protection.json
 - .github/secret_scanning.yml
 - .github/workflows/rhiza_benchmark.yml
 - .github/workflows/rhiza_book.yml
 - .github/workflows/rhiza_ci.yml
 - .github/workflows/rhiza_codeql.yml
 - .github/workflows/rhiza_marimo.yml
+- .github/workflows/rhiza_paper.yml
 - .github/workflows/rhiza_release.yml
 - .github/workflows/rhiza_scorecard.yml
 - .github/workflows/rhiza_weekly.yml
@@ -36,5 +38,5 @@ files:
 - pytest.ini
 - ruff.toml
 - tests/test_rhiza_packaging.py
-synced_at: '2026-09-02T13:54:28Z'
+synced_at: '2026-09-04T12:19:34Z'
 strategy: merge
