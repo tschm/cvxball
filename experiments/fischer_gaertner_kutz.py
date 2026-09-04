@@ -53,17 +53,21 @@ numerically before they were relied upon:
   separates the candidates and the numerator is then non-negative by the
   invariant. The walk takes ``a = min(1, min_p a_p)``.
 
-**Scope.** This is the *algorithm* of Fig. 2, not the C++ engineering around it.
-Section 4's dynamic QR-decomposition -- Givens rotations updating ``Q`` and ``R``
-in place as a point enters or leaves ``T``, quadratic in ``d`` instead of the
-cubic cost of rebuilding -- is deliberately not reproduced, and the QR here is
-recomputed from scratch each iteration. That is a considered choice rather than a
-shortcut: a Givens sweep written as a Python loop would be slower than one
-vectorised LAPACK call to ``numpy.linalg.qr``, so implementing it would
-*misrepresent* the paper's performance claim rather than demonstrate it. What is
-kept is the paper's formulation of the linear algebra -- the projection and the
-affine coefficients both read off a QR of the edge matrix ``A = [q_1 - q_0, ...]``
--- so the arithmetic per iteration is theirs even where its scheduling is not.
+**Scope.** Both halves of the paper are here: the pivoting algorithm of Fig. 2,
+and section 4's dynamic QR-decomposition that makes it fast. :class:`_Frame`
+carries ``Q`` and ``R`` for the edge matrix ``A = [q_1 - q_0, ...]`` across pivots
+and repairs them in ``O(d r)`` as points enter and leave, rather than
+refactorising in ``O(d r^2)``; ``dynamic_qr=False`` selects the rebuild instead,
+which gives the same answers and is the baseline that says what the data
+structure is worth.
+
+Reproducing it is only worthwhile because ``scipy.linalg`` exposes the updates --
+``qr_insert``, ``qr_delete``, ``qr_update`` -- as compiled LAPACK-backed routines.
+Written as a Python loop the Givens sweeps would lose to a single vectorised
+``numpy.linalg.qr``, and the comparison would then measure the interpreter rather
+than the algorithm. That is a dependency this module can take and the shipped
+solver cannot: ``experiments/`` is not installed, so scipy stays a development
+dependency and ``import cvxball`` still pulls in NumPy and nothing else.
 
 Both of the paper's pivot rules are here, selected by ``pivot_rule``:
 
@@ -89,7 +93,7 @@ centre in ``conv(T)`` is at most 1/2).
 from typing import Literal, NamedTuple
 
 import numpy as np
-from scipy.linalg import solve_triangular
+from scipy.linalg import qr_delete, qr_insert, qr_update, solve_triangular
 
 from cvxball.solver import _validate
 
@@ -133,54 +137,196 @@ class Ball(NamedTuple):
     insertions: int
 
 
-def _edge_frame(face: np.ndarray) -> np.ndarray:
-    """Compute an orthonormal basis of the direction space of ``aff(face)``.
+class _Frame:
+    """The support set, and the economic ``QR`` of its edge matrix, kept in step.
 
-    This is the ``Q`` of the paper's ``QR = A`` for the edge matrix
-    ``A = [q_1 - q_0, ..., q_r - q_0]``. Only ``Q`` is needed to project onto
-    ``aff(face)``, since ``A x* = Q Q' b`` for the least-squares solution ``x*``;
-    ``R`` is recovered by :func:`_affine_coefficients` when the coefficients
-    themselves are wanted.
+    This is section 4 of the paper: rather than refactorise the edge matrix
+    ``A = [q_1 - q_0, ..., q_r - q_0]`` from scratch at every pivot, carry ``Q``
+    and ``R`` and repair them as one point enters or leaves. Rebuilding costs
+    ``O(d r^2)``; each repair costs ``O(d r)``, and with ``r`` in the hundreds at
+    the dimensions this method is built for, that is the difference the paper's
+    engineering is about.
 
-    Args:
-        face: A ``(m, d)`` array of affinely independent points, ``m >= 1``.
+    Three updates cover every move the algorithm makes, and only the third needs
+    thought:
 
-    Returns:
-        A ``(d, m - 1)`` array with orthonormal columns spanning the edge space.
-        It has no columns when ``face`` is a single point, whose affine hull is
-        that point alone.
+    - **A point joins ``T``.** One column is appended: ``qr_insert``.
+    - **A point other than the origin leaves.** One column is dropped:
+      ``qr_delete``.
+    - **The origin leaves.** No single column corresponds to ``q_0``, since every
+      column is measured *from* it, so dropping it changes them all. Promote
+      ``q_1`` to origin and the new edges are ``a_j - a_1``: delete column ``a_1``,
+      then subtract it from what remains, which is a rank-one update. Two compiled
+      calls, both ``O(d r)``, which is the "appropriate rank-1-update" the paper
+      mentions without spelling out.
+
+    All three come from ``scipy.linalg``, so the Givens sweeps run compiled. That
+    is what makes reproducing section 4 worthwhile here: written as a Python loop
+    they would lose to a single vectorised ``numpy.linalg.qr``, and the comparison
+    would measure the interpreter rather than the data structure. Pass
+    ``dynamic=False`` to get exactly that rebuild-every-pivot behaviour, which is
+    what the two are measured against each other with.
     """
-    edges = (face[1:] - face[0]).T
-    basis: np.ndarray = np.linalg.qr(edges)[0]
-    return basis
 
+    def __init__(self, points: np.ndarray, origin: int, dynamic: bool) -> None:
+        """Start from the one-point support ``{origin}``, whose edge matrix is empty.
 
-def _affine_coefficients(face: np.ndarray, centre: np.ndarray) -> np.ndarray:
-    """Express ``centre`` as an affine combination of ``face``.
+        Args:
+            points: The ``(n, d)`` cloud, in centred coordinates.
+            origin: Index of the single point the support starts as.
+            dynamic: Maintain ``Q`` and ``R`` across changes, rather than
+                refactorising after each one.
+        """
+        self._points = points
+        self._dynamic = dynamic
+        self.support = [origin]
+        self.rebuilds = 0
+        self._q: np.ndarray = np.zeros((points.shape[1], 0))
+        self._r: np.ndarray = np.zeros((0, 0))
 
-    The paper's route, verbatim: with ``QR = A`` for the edge matrix ``A``, solve
-    ``R x = Q' (centre - q_0)`` by back substitution. The entries of ``x`` are the
-    coefficients of ``q_1, ..., q_r``, and the missing coefficient of ``q_0``
-    follows from the affine constraint that they sum to one.
+    @property
+    def origin(self) -> np.ndarray:
+        """Return ``q_0``, the point every edge is measured from."""
+        return self._points[self.support[0]]
 
-    This is meaningful only when ``centre`` lies in ``aff(face)``, which the
-    caller guarantees by only asking after a walk has run to completion -- the
-    centre is then the projection onto that hull, by construction.
+    @property
+    def basis(self) -> np.ndarray:
+        """Return ``Q``: orthonormal columns spanning the direction space of ``aff(T)``."""
+        return self._q
 
-    Args:
-        face: A ``(m, d)`` array of affinely independent points.
-        centre: The ``(d,)`` point to express.
+    def _refactorise(self) -> None:
+        """Rebuild ``Q`` and ``R`` from the current support, from scratch."""
+        self.rebuilds += 1
+        face = self._points[self.support]
+        edges = (face[1:] - face[0]).T
+        if edges.shape[1] == 0:
+            self._q = np.zeros((edges.shape[0], 0))
+            self._r = np.zeros((0, 0))
+        else:
+            self._q, self._r = np.linalg.qr(edges)
 
-    Returns:
-        The ``(m,)`` coefficients, summing to one. A negative entry certifies that
-        ``centre`` lies outside ``conv(face)``, which is what drives the drop.
-    """
-    if face.shape[0] == 1:
-        return np.ones(1)
+    def _economise(self) -> None:
+        """Trim ``Q`` and ``R`` back to the economic shape after an update.
 
-    basis, upper = np.linalg.qr((face[1:] - face[0]).T)
-    tail = solve_triangular(upper, basis.T @ (centre - face[0]), lower=False)
-    return np.concatenate(([1.0 - float(tail.sum())], tail))
+        scipy's updates leave ``Q`` as wide as it was, so deleting a column from a
+        square factorisation returns ``Q`` of shape ``(d, d)`` beside an ``R`` of
+        shape ``(d, r-1)`` -- no longer the economic pair. Both consumers break on
+        that, and one of them breaks *silently*: with ``Q`` square, ``Q Q'`` is the
+        identity, so the projection onto ``aff(T)`` would come back as the point
+        itself and the walk direction would collapse to zero, reading as "already
+        on the hull" at every subsequent pivot.
+
+        ``R`` is upper triangular, so its surplus rows are zero and the surplus
+        columns of ``Q`` multiply nothing: dropping them leaves ``QR = A`` exactly.
+        """
+        columns = len(self.support) - 1
+        if self._q.shape[1] != columns or self._r.shape != (columns, columns):
+            self._q = self._q[:, :columns]
+            self._r = self._r[:columns, :columns]
+
+    def insert(self, index: int) -> None:
+        """Take ``points[index]`` into the support, appending one edge column.
+
+        Args:
+            index: Index into the cloud of the entering point.
+        """
+        column = self._points[index] - self.origin
+        self.support.append(index)
+        if not self._dynamic:
+            self._refactorise()
+        elif self._r.shape[0] == 0:
+            # The first edge: its economic QR is just the normalised column, and
+            # scipy has no zero-column factorisation to insert into.
+            length = float(np.linalg.norm(column))
+            self._q = (column / length)[:, None]
+            self._r = np.array([[length]])
+        else:
+            self._q, self._r = qr_insert(self._q, self._r, column, self._r.shape[1], which="col")
+            self._economise()
+
+    def remove(self, position: int) -> None:
+        """Drop the support point at ``position``, repairing the factorisation.
+
+        Args:
+            position: Index *within the support list*, not into the cloud.
+                Position 0 is the origin, and takes the re-origining path.
+        """
+        if not self._dynamic:
+            del self.support[position]
+            self._refactorise()
+            return
+
+        if position > 0:
+            # An ordinary column, sitting at position - 1 of the edge matrix.
+            self._q, self._r = qr_delete(self._q, self._r, position - 1, which="col")
+            del self.support[position]
+            self._economise()
+            return
+
+        # The origin leaves, so q_1 is promoted and every edge is re-measured from
+        # it. Deleting a_1's column leaves [a_2, ..., a_r]; the rank-one update
+        # then turns those into [a_2 - a_1, ..., a_r - a_1].
+        first_edge = self._points[self.support[1]] - self.origin
+        remaining = self._r.shape[0] - 1
+        if remaining == 0:
+            self._q = np.zeros((self._points.shape[1], 0))
+            self._r = np.zeros((0, 0))
+        else:
+            self._q, self._r = qr_delete(self._q, self._r, 0, which="col")
+            self._q = self._q[:, :remaining]
+            self._r = self._r[:remaining, :remaining]
+            self._q, self._r = qr_update(self._q, self._r, -first_edge, np.ones(remaining))
+        del self.support[0]
+        self._economise()
+
+    def direction_to_circumcentre(self, centre: np.ndarray) -> np.ndarray:
+        """Return ``cc(T) - centre``, the walking direction.
+
+        By Lemma 3(i) that segment is orthogonal to ``aff(T)``, so the
+        circumcentre is the orthogonal projection of ``centre`` onto the hull and
+        ``Q Q'`` is all that is needed to find it.
+
+        Args:
+            centre: The current centre.
+
+        Returns:
+            The ``(d,)`` step from ``centre`` to the circumcentre of the support.
+        """
+        offset = centre - self.origin
+        return self._q @ (self._q.T @ offset) - offset
+
+    def coefficients(self, centre: np.ndarray) -> np.ndarray:
+        """Express ``centre`` as an affine combination of the support.
+
+        The paper's route, verbatim: solve ``R x = Q' (centre - q_0)`` by back
+        substitution. The entries of ``x`` are the coefficients of ``q_1, ..., q_r``
+        and the missing one for ``q_0`` follows from their summing to one.
+
+        Meaningful only when ``centre`` lies in ``aff(T)``, which the caller
+        guarantees by asking solely after a walk has run to completion.
+
+        Args:
+            centre: The current centre.
+
+        Returns:
+            The ``(m,)`` coefficients. A negative entry certifies that ``centre``
+            lies outside ``conv(T)``, which is what drives the drop.
+        """
+        if self._r.shape[0] == 0:
+            return np.ones(1)
+        rhs = self._q.T @ (centre - self.origin)
+        try:
+            tail = solve_triangular(self._r, rhs, lower=False)
+        except np.linalg.LinAlgError:
+            # A support can drift into near-dependence despite the stability
+            # threshold, and a *rebuilt* factorisation then puts an exact zero on
+            # R's diagonal where the incrementally updated one keeps it merely
+            # small -- so this fires on `dynamic=False` and not on the maintained
+            # factorisation. The least-squares solution agrees with back
+            # substitution wherever the system is solvable at all, so falling back
+            # costs nothing and keeps the rebuild baseline usable as a comparison.
+            tail = np.linalg.lstsq(self._r, rhs, rcond=None)[0]
+        return np.concatenate(([1.0 - float(tail.sum())], tail))
 
 
 def _leaving_point(coefficients: np.ndarray, support: list[int], pivot_rule: PivotRule) -> int | None:
@@ -188,7 +334,7 @@ def _leaving_point(coefficients: np.ndarray, support: list[int], pivot_rule: Piv
 
     Args:
         coefficients: The affine coefficients of the centre with respect to the
-            support, as returned by :func:`_affine_coefficients`.
+            support, as returned by :meth:`_Frame.coefficients`.
         support: The indices currently in the support, in insertion order.
         pivot_rule: ``"bland"`` takes the negative-coefficient point of smallest
             rank in the fixed order on ``S`` -- here the index into the input,
@@ -212,8 +358,7 @@ def _entering_point(
     fractions: np.ndarray,
     shortest: float,
     points: np.ndarray,
-    face: np.ndarray,
-    basis: np.ndarray,
+    frame: _Frame,
     pivot_rule: PivotRule,
 ) -> int:
     """Choose which point stopping the walk should enter the support.
@@ -223,8 +368,7 @@ def _entering_point(
             stop the walk at all.
         shortest: The smallest of them, the distance actually walked.
         points: The ``(n, d)`` cloud, in centred coordinates.
-        face: The ``(m, d)`` current support points.
-        basis: The orthonormal edge basis from :func:`_edge_frame`.
+        frame: The current support and its factorisation.
         pivot_rule: ``"bland"`` takes the smallest index among the points that
             stop the walk at the same place, as Theorem 1 requires.
             ``"heuristic"`` takes the one farthest from ``aff(T)``, the paper's
@@ -238,7 +382,8 @@ def _entering_point(
     if tied.size == 1 or pivot_rule == "bland":
         return int(tied[0])
 
-    offsets = points[tied] - face[0]
+    basis = frame.basis
+    offsets = points[tied] - frame.origin
     residuals = offsets - (offsets @ basis) @ basis.T
     return int(tied[np.argmax(np.einsum("ij,ij->i", residuals, residuals))])
 
@@ -246,6 +391,7 @@ def _entering_point(
 def ball_with_counts(
     points: np.ndarray,
     pivot_rule: PivotRule = "heuristic",
+    dynamic_qr: bool = True,
     verbose: bool = False,
 ) -> Ball:
     """Solve the smallest enclosing ball by the pivoting method, reporting the work done.
@@ -254,6 +400,10 @@ def ball_with_counts(
         points: A ``(n, d)`` array with ``n >= 1``.
         pivot_rule: ``"heuristic"`` (the paper's own code) or ``"bland"`` (the
             rule Theorem 1 proves terminating).
+        dynamic_qr: Carry the factorisation across pivots, repairing it in
+            ``O(d r)`` as section 4 does. ``False`` refactorises from scratch at
+            every pivot, in ``O(d r^2)`` -- the same answers, and the baseline the
+            data structure is worth measuring against.
         verbose: If ``True``, print the phase, support size and radius per turn.
 
     Returns:
@@ -286,7 +436,8 @@ def ball_with_counts(
     # S farthest from it -- which is what makes B(c, T) enclose S to begin with.
     centre = pts[0].copy()
     offsets = pts - centre
-    support = [int(np.argmax(np.einsum("ij,ij->i", offsets, offsets)))]
+    frame = _Frame(pts, int(np.argmax(np.einsum("ij,ij->i", offsets, offsets))), dynamic_qr)
+    support = frame.support
     # Whether c is known to lie in aff(T). It is not, initially: c is one point of
     # the cloud and aff(T) is a different one. It becomes true exactly when a walk
     # runs to completion, since the centre is then the projection onto that hull.
@@ -295,27 +446,24 @@ def ball_with_counts(
     drops = insertions = 0
     limit = _MAX_ITER_PER_POINT * (n + 1)
     for iteration in range(limit):
-        face = pts[support]
-
         if on_hull:
-            leaving = _leaving_point(_affine_coefficients(face, centre), support, pivot_rule)
+            leaving = _leaving_point(frame.coefficients(centre), support, pivot_rule)
             if leaving is None:
                 # c is in conv(T): by Lemma 1 this ball is SEB(S).
-                radius = float(np.linalg.norm(face - centre, axis=1).max())
+                radius = float(np.linalg.norm(pts[support] - centre, axis=1).max())
                 if verbose:
                     print(f"[{iteration:4d}] optimal   support={len(support):3d} radius={radius:.12g}")
                 return Ball(radius, centre + shift, np.array(support, dtype=np.intp), iteration, drops, insertions)
             if verbose:
                 print(f"[{iteration:4d}] drop      support={len(support):3d} point={support[leaving]}")
-            del support[leaving]
+            frame.remove(leaving)
             drops += 1
             on_hull = False
             continue
 
         # --- Walking phase ---------------------------------------------------
         # cc(T) is the orthogonal projection of c onto aff(T), by Lemma 3(i).
-        basis = _edge_frame(face)
-        direction = (basis @ (basis.T @ (centre - face[0]))) - (centre - face[0])
+        direction = frame.direction_to_circumcentre(centre)
         direction_sq = float(direction @ direction)
         if np.sqrt(direction_sq) <= margin:
             # Already on the hull -- reached whenever the support has grown to
@@ -357,9 +505,9 @@ def ball_with_counts(
                 radius = float(np.linalg.norm(pts[support] - centre, axis=1).max())
                 print(f"[{iteration:4d}] arrive    support={len(support):3d} radius={radius:.12g}")
         else:
-            entering = _entering_point(fractions, shortest, pts, face, basis, pivot_rule)
+            entering = _entering_point(fractions, shortest, pts, frame, pivot_rule)
             centre = centre + shortest * direction
-            support.append(entering)
+            frame.insert(entering)
             insertions += 1
             if verbose:
                 radius = float(np.linalg.norm(pts[support] - centre, axis=1).max())
