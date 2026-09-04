@@ -98,8 +98,8 @@ in one pass.
 
 What follows records two methods on that structure, at equal length and with
 equal claim: the dual ascent of Section~\ref{sec:method}, and the primal
-deflation of Section~\ref{sec:fgk}, which is the method
-of~\cite{fischer2003}. They keep the same support set, solve the same subproblem
+deflation of Section~\ref{sec:fgk}, which is the pivoting method of Fischer,
+G\"artner and Kutz~\cite{fischer2003}. They keep the same support set, solve the same subproblem
 and repair the same factorisation (Section~\ref{sec:qr}); they need the same care
 with tolerances (Section~\ref{sec:invariance}); and on every input measured in
 Section~\ref{sec:numerics} they agree on the ball, on its support, and to within a
@@ -181,8 +181,8 @@ set $T$ on its boundary, and shrink it until its centre falls inside $\conv T$.
 The second reading is Seidel's lemma, which Fischer, G\"artner and
 Kutz~\cite{fischer2003} take as their Lemma~1: a ball through $T$ containing $S$
 is the smallest enclosing ball exactly when its centre is the circumcentre
-$\mathrm{cc}(T)$ \emph{and} lies in $\conv T$. Sections~\ref{sec:method}
-and~\ref{sec:fgk} are those two readings made into methods. They keep the same
+$\mathrm{cc}(T)$ \emph{and} lies in $\conv T$. Sections~\ref{sec:method} and~\ref{sec:fgk} are those two readings made into
+methods --- the second being theirs. They keep the same
 kind of state --- a subset of $S$ that will end up on the boundary, and a point in
 its affine hull --- and differ in which feasibility they refuse to give up. The
 first stays dual feasible, so by Proposition~\ref{prop:duality} its radius rises
@@ -270,12 +270,12 @@ that
 \end{equation}
 so the farthest violator is the fixed variable with the largest reduced gradient.
 
-\section{The primal pivoting method}
+\section{The primal pivoting method of Fischer, G\"artner and Kutz}
 \label{sec:fgk}
 
-The other method carries a ball rather than a set of weights, and never
-surrenders it. Its state is a pair $(c,T)$, a centre and a support set, subject to
-the invariant of Fig.~2 of~\cite{fischer2003}:
+The method of Fischer, G\"artner and Kutz~\cite{fischer2003} carries a ball rather
+than a set of weights, and never surrenders it. Its state is a pair $(c,T)$, a
+centre and a support set, subject to the invariant of their Fig.~2:
 \begin{equation}
   \label{eq:fgk-invariant}
   S\subseteq B(c,T),\qquad T\subseteq\partial B(c,T),\qquad
@@ -292,12 +292,12 @@ of $c$ with respect to $T$ is negative; drop such a point. The coefficients are
 the same object as the barycentric weights of~\eqref{eq:sub} and come from the
 same factorisation (Section~\ref{sec:qr}), but here they are read rather than
 moved: there is no ratio test, because $c$ does not travel during a drop.
-Lemmata~4 and~5 of~\cite{fischer2003} together say the dropped point cannot stop
+Their Lemmata~4 and~5 together say the dropped point cannot stop
 the walk that immediately follows, which is what keeps the two phases from undoing
 each other.
 
-\paragraph{Walking.} Move $c$ along $e=\mathrm{cc}(T)-c$. Lemma~3
-of~\cite{fischer2003} says that segment is orthogonal to $\aff(T)$, that $T$ stays
+\paragraph{Walking.} Move $c$ along $e=\mathrm{cc}(T)-c$. Their Lemma~3
+says that segment is orthogonal to $\aff(T)$, that $T$ stays
 on the boundary the whole way, and that the radius strictly decreases --- the
 deflation. Two consequences make the step cheap. Orthogonality makes
 $\mathrm{cc}(T)$ the projection of $c$ onto $\aff(T)$, so no circumsphere is ever
@@ -321,8 +321,8 @@ $T$ and the ball has shrunk.
 
 \paragraph{Pivot rules.} Ties are resolved two ways. \emph{Bland's rule}, adapted:
 fix an order on $S$, drop the negative-coefficient point of smallest rank, and
-admit the smallest-rank point among those that stop the walk together. Theorem~1
-of~\cite{fischer2003} proves termination with it, degeneracies included. The
+admit the smallest-rank point among those that stop the walk together. Their Theorem~1
+proves termination with it, degeneracies included. The
 \emph{heuristic}, which is what their own code runs and what the tables below
 report, drops the \emph{most} negative coefficient and admits the tied point
 farthest from $\aff(T)$ --- the enlargement that leaves the support best
