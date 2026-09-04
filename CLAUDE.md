@@ -72,9 +72,6 @@ Rhiza (then re-sync).
   top level, so it is unambiguously the root document; adding a second one there
   would hand the compile to whichever sorts first unless one is named `main.tex`.
   Both the PDF and the LaTeX aux files are gitignored by the template.
-- `paper/ball.tex` — the long form, and deliberately *not* under `docs/paper/`:
-  only one root document per folder gets compiled. It has no task of its own and
-  builds with `pdflatex ball.tex` run twice.
 - `pyproject.toml` — project metadata, dependencies, and local tool config
   (`[tool.deptry]`, `[tool.rhiza-task]`, `[tool.bumpversion]`).
 - `README.md` and any project-specific documentation.
