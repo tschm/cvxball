@@ -189,13 +189,15 @@ its own in `.github/workflows/audit.yml`:
 There is no `make validate`, and `make deptry` is gone (the target is `deps`).
 Template drift is caught by the `check-managed-files` pre-commit hook instead.
 
-The project test suite covers `src/cvxball/` at 98%, above the 90% gate:
-`solver.py`, `fischer_gaertner_kutz.py` and `__init__.py` are at 100%, and the ten
-lines missing are `_frame.py`'s fallback branches — the paths taken when a SciPy
-update refuses a repair and the factorisation has to be rebuilt. The equivalent
-paths in the pivoting solver *are* covered, by forcing the refusal
-(`test_fgk_frame_falls_back_when_an_update_is_refused`); the same treatment would
-close `_frame.py`. CI runs
+The project test suite covers `src/cvxball/` at 100%, statements and branches
+both, well above the 90% gate. Holding that costs something worth knowing: the
+last lines to fall were the rebuild-on-refusal paths in both factorisations —
+`_frame.py`'s and the pivoting solver's `_Frame` — and no input reaches them, since
+the stability thresholds exist precisely to make a refused `qr_insert`,
+`qr_delete` or `qr_update` rare. They are reached by patching the routine to raise
+(`test_maintained_face_falls_back_when_an_update_is_refused`,
+`test_fgk_frame_falls_back_when_an_update_is_refused`), which is the idiom to
+follow for the next such path rather than lowering the bar. CI runs
 it on ubuntu, macOS and Windows across Python 3.11–3.14; the OS list comes from
 `ci-os-matrix` in `[tool.rhiza-task]`, without which it would default to
 ubuntu alone.

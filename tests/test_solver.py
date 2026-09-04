@@ -348,6 +348,7 @@ def test_fgk_frame_falls_back_when_an_update_is_refused(routine, error, act) -> 
     """
 
     def refuse(*_args, **_kwargs):
+        """Stand in for the SciPy update, declining every repair."""
         raise error("refused")
 
     rng = np.random.default_rng(11)
@@ -413,6 +414,7 @@ def test_fgk_coefficients_fall_back_to_least_squares() -> None:
     exact = frame.coefficients(centre)
 
     def refuse(*_args, **_kwargs):
+        """Stand in for the triangular solve, reporting a singular factor."""
         raise np.linalg.LinAlgError("singular")
 
     with patch.object(fgk_module, "solve_triangular", refuse):
@@ -442,6 +444,7 @@ def test_fgk_skips_a_candidate_the_factorisation_will_not_take() -> None:
     calls: list[int] = []
 
     def refuse_once(self, index: int) -> bool:
+        """Reject the first candidate offered, then defer to the real test."""
         calls.append(index)
         return False if len(calls) == 1 else bool(admits(self, index))
 
@@ -653,6 +656,99 @@ def test_maintained_face_duplicate_point_is_rebuilt() -> None:
 
     assert frame.support == [0, 1]
     assert frame.null_space().shape[1] > 0
+
+
+@pytest.mark.parametrize(
+    ("routine", "error", "act"),
+    [
+        ("qr_delete", np.linalg.LinAlgError, lambda frame: frame.remove(2)),
+        ("qr_update", ValueError, lambda frame: frame.remove(0)),
+    ],
+    ids=["delete", "reorigin"],
+)
+def test_maintained_face_falls_back_when_an_update_is_refused(routine, error, act) -> None:
+    """A refused repair is met by rebuilding, and the rebuild is counted.
+
+    The insert side of this is reached by ordinary input -- a dependent column is
+    what ``test_maintained_face_rebuilds_on_a_dependent_insert`` drives -- but the
+    two removal sites are not, since a support the solver is willing to drop from
+    is one SciPy is willing to update. Forcing the refusal is the only way to
+    reach them deliberately, and the counter moving is the point: a fallback that
+    stopped being rare would mean the data structure had stopped paying.
+    """
+
+    def refuse(*_args, **_kwargs):
+        """Stand in for the SciPy update, declining every repair."""
+        raise error("refused")
+
+    rng = np.random.default_rng(12)
+    points = rng.normal(size=(8, 6))
+    frame = frame_module._MaintainedFace(points, 0)
+    for index in (1, 2, 3):
+        frame.insert(index)
+
+    with patch.object(frame_module, routine, refuse):
+        act(frame)
+
+    assert frame.fallbacks == 1
+    face = points[frame.support]
+    np.testing.assert_allclose(frame._q @ frame._r, (face[1:] - face[0]).T, atol=1e-12)
+    gram = frame._q.T @ frame._q
+    np.testing.assert_allclose(gram, np.eye(gram.shape[0]), atol=1e-12)
+
+
+def test_maintained_face_rebuild_of_a_singleton_empties_the_factorisation() -> None:
+    """A rebuild that lands on one point must produce the empty pair, not a stub.
+
+    ``_refactorise`` is written against a support of any size, and the smallest is
+    one point with no edges at all -- the shape the frame is born with, and the
+    shape ``null_space`` and ``circumcentre_weights`` are written against. It is
+    reached when a refused removal drops the support to a single point.
+    """
+
+    def refuse(*_args, **_kwargs):
+        """Stand in for the SciPy update, declining every repair."""
+        raise np.linalg.LinAlgError("refused")
+
+    points = np.array([[0.0, 0.0, 0.0], [1.0, 2.0, 3.0], [4.0, 0.0, 1.0]])
+    frame = frame_module._MaintainedFace(points, 0)
+    frame.insert(1)
+
+    with patch.object(frame_module, "qr_delete", refuse):
+        frame.remove(1)
+
+    assert frame.support == [0]
+    assert frame.fallbacks == 1
+    assert frame._q.shape == (3, 0)
+    assert frame._r.shape == (0, 0)
+    assert frame.null_space().shape == (1, 0)
+    assert frame.circumcentre_weights() == pytest.approx([1.0])
+
+
+def test_maintained_face_trims_q_after_deleting_from_a_square_factorisation() -> None:
+    """Deleting a column from a square ``QR`` leaves a wide ``Q`` to trim.
+
+    SciPy's updates keep ``Q`` as wide as it was, so a support that spanned the
+    whole space and then lost a point comes back with more columns of ``Q`` than
+    ``R`` has rows. Left untrimmed the triangular solve breaks loudly and the
+    projection breaks *silently*, ``Q Q'`` being the identity for a square ``Q``:
+    the centre would project onto itself and every later step would read as
+    already optimal. ``_economise`` is what prevents that, and this is the state
+    that calls for it.
+    """
+    points = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+    frame = frame_module._MaintainedFace(points, 0)
+    for index in (1, 2, 3):
+        frame.insert(index)
+    assert frame._q.shape == (3, 3), "the support should span the space before the drop"
+
+    frame.remove(2)
+
+    assert frame.fallbacks == 0
+    assert frame._q.shape == (3, 2)
+    assert frame._r.shape == (2, 2)
+    face = points[frame.support]
+    np.testing.assert_allclose(frame._q @ frame._r, (face[1:] - face[0]).T, atol=1e-12)
 
 
 def test_solver_dispatches_on_dimension() -> None:
