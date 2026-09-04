@@ -431,6 +431,62 @@ def test_active_set_handles_huge_scales() -> None:
     assert center == pytest.approx([3e12, 4e12], rel=1e-12)
 
 
+def test_active_set_survives_squaring_the_exponent_range() -> None:
+    """Extreme but ordinary magnitudes stay solvable, because the method squares.
+
+    A double reaches to ~1e308, so a *squared* quantity reaches only ~1e154. This
+    method squares everything it touches -- the Gram matrix, the distances, the
+    noise floor -- which halves the usable exponent range. Before the cloud was
+    normalised by a power of two, a cloud of extent 1e-160 produced a Gram matrix
+    in the subnormals whose solve overflowed to infinity and crashed with an
+    `IndexError` from an emptied support set, and a cloud of extent 1e+160
+    saturated to a silently reported `radius == 0` -- the worse of the two.
+
+    Both ends are checked here, well past where the failures used to start, and
+    the answer is exact at every one: the normalisation is a power of two.
+    """
+    base = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
+    for exponent in (-300, -200, -160, -155, -50, 0, 50, 155, 160, 200, 300):
+        points = base * 10.0**exponent
+        radius, center = min_circle_active_set(points)
+
+        assert radius == pytest.approx(2**0.5 / 2 * 10.0**exponent, rel=1e-12)
+        assert center == pytest.approx([0.5 * 10.0**exponent] * 2, rel=1e-12)
+
+
+def test_active_set_solves_the_subnormal_gram_regression() -> None:
+    """The cloud Hypothesis found: a 1-D pair whose squared extent is subnormal.
+
+    ``6.8e-156`` squares to ``4.7e-311``, a subnormal, and the circumcentre solve
+    on that Gram matrix returned ``[-inf, inf]``. The weights then went to NaN, the
+    support emptied, and the next iteration indexed row 0 of an empty face.
+    """
+    points = np.array([[6.82355645e-156], [0.0]])
+    radius, center = min_circle_active_set(points)
+
+    assert radius == pytest.approx(6.82355645e-156 / 2, rel=1e-12)
+    assert center == pytest.approx([6.82355645e-156 / 2], rel=1e-12)
+
+
+def test_active_set_normalisation_preserves_bit_exactness() -> None:
+    """Rescaling by a power of two moves no bits, so exact answers stay exact.
+
+    This is the property the normalisation was chosen to protect: any other factor
+    (the extent itself, say) would round, and the documented bit-for-bit results
+    would become approximate.
+    """
+    radius, center = min_circle_active_set(np.array([[0, 0], [1, 0], [0, 1]]))
+    assert radius == 2**0.5 / 2
+    assert (center == 0.5).all()
+
+    # ...and the same cloud shifted by whole binary octaves is exact there too.
+    for exponent in (-500, -100, 100, 500):
+        scaled = np.ldexp(np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]), exponent)
+        radius, center = min_circle_active_set(scaled)
+        assert radius == np.ldexp(2**0.5 / 2, exponent)
+        assert (center == np.ldexp(0.5, exponent)).all()
+
+
 def test_active_set_far_from_origin() -> None:
     """A small cloud sitting far from the origin is solved on its own extent.
 

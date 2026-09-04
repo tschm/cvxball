@@ -197,6 +197,15 @@ absolute floor proportional to $\varepsilon\max_i\norm{p_i}^2$, and normalise th
 null-space direction before comparing anything derived from it --- the gradient
 carries units of length$^2$, the weight tolerance does not.
 
+\emph{Exponent range.} Tolerances are not the whole of it. A double reaches to
+$10^{308}$, so a \emph{squared} double reaches only to $10^{154}$, and this method
+squares everything: the Gram matrix, the distances, the noise floor. A cloud of
+extent $10^{-160}$ --- ordinary coordinates --- therefore has a Gram matrix in the
+subnormals, and the solve~\eqref{eq:sub} overflows; at $10^{+160}$ the squares
+saturate and the method reports $R=0$ without raising. Rescaling the centred cloud
+to unit extent removes both, and the factor must be a power of two: any other
+rounds, and the exactness Table~\ref{tab:bench} reports is lost with it.
+
 \section{Cost, and the dual as a certificate}
 
 Per iteration the method performs one $O(nd)$ sweep of squared distances and one

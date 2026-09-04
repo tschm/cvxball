@@ -48,8 +48,10 @@ method is *not* under test; it is reached only by the benchmark.
 Two properties of the active-set code are load-bearing and easy to break:
 it is **scale-invariant** (no tolerance is tied to coordinates of magnitude 1 —
 the affine-rank test runs on edge vectors, the feasibility slack is sized off the
-cloud's extent, and the null-space direction is normalised before it meets a
-weight tolerance) and it is **origin-invariant** (it recentres the cloud first,
+cloud's extent, the null-space direction is normalised before it meets a weight
+tolerance, and the centred cloud is rescaled to unit extent by an exact *power of
+two*, which keeps every squared quantity inside the exponent range that squaring
+halves while moving no bits, so representable answers stay bit-exact) and it is **origin-invariant** (it recentres the cloud first,
 and forms squared distances by differencing before squaring). Both are covered by
 tests; see `tests/test_solver.py::test_active_set_handles_tiny_scales` and
 `::test_active_set_far_from_origin` for what regressions look like.
