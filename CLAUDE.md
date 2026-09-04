@@ -102,7 +102,7 @@ Rhiza (then re-sync).
 - `experiments/` — reference implementations and benchmarks. Outside `packages`
   and `testpaths`, so the coverage, docstring and type gates do not reach it;
   `ruff` and `ruff-format` do.
-- `docs/paper/seb.tex` — the seven-page note, with the benchmark tables. It sits
+- `docs/paper/seb.tex` — the nine-page note, with the benchmark tables. It sits
   in the docs tree because that is where rhiza's `paper` task looks: `make paper`
   compiles the root document of `docs/paper/` with tectonic (rerunning until
   cross-references converge) and leaves the PDF beside the source, which is what
