@@ -23,6 +23,14 @@ a projection plus a sweep over all ``n``. They are each the right way to track o
 method against itself as ``d`` grows, and the wrong way to rank one method against
 the other -- which is what the wall clocks beside them are for.
 
+The high-dimension table is a different comparison again, and a narrower one:
+only the active-set and pivoting methods, at ``n = 1000`` and ``d`` from ``1000``
+to ``16000``. Welzl and Clarabel are not run there because neither finishes, and
+what is left are two methods that both repair the factorisation of their support
+instead of rebuilding it and both sweep the cloud once per iteration -- so here
+the two step counts *are* comparable, and the wall clocks measure the same shape
+of program.
+
 The dimension sweep exists because the basis count is a high-variance random
 variable: a single seed can put ``d = 10`` below ``d = 9``, and so can a mean
 over five. It is reported as a median over `SEEDS` seeds with the worst seed
@@ -30,6 +38,8 @@ beside it, because the spread is part of the finding rather than noise to be
 averaged away.
 """
 
+import contextlib
+import io
 import statistics
 import time
 from collections.abc import Callable
@@ -57,6 +67,11 @@ MAIN_GRID = [
 ]
 SWEEP_DIMENSIONS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 SWEEP_POINTS = 1000
+# The high-dimension sweep, where both methods carry their support's factorisation
+# and repair it: `cvxball._frame` above `_MAINTAIN_MIN_DIM`, and section 4 of the
+# pivoting paper. Welzl and Clarabel are absent because neither finishes here.
+HIGH_DIMENSIONS = [1000, 2000, 4000, 8000, 16000]
+HIGH_POINTS = 1000
 REPEATS = 3
 SEEDS = 15
 
@@ -170,6 +185,64 @@ def dimension_sweep() -> None:
         )
 
 
+def active_set_steps(points: np.ndarray) -> tuple[int, int]:
+    """Count the active-set method's iterations, and the size of its final support.
+
+    The solver returns ``(radius, centre)`` and nothing else -- the weights are its
+    certificate, not its instrumentation -- so the count is read off its ``verbose``
+    trace, which prints one line per iteration. That costs a second solve, which is
+    why this is a separate call rather than folded into the timed one: printing
+    inside the loop would land in the wall clock it is reported beside.
+
+    Args:
+        points: The ``(n, d)`` cloud.
+
+    Returns:
+        The ``(iterations, support_size)`` pair, the support being the one carried
+        into the final iteration -- the set whose circumsphere is the answer.
+    """
+    trace = io.StringIO()
+    with contextlib.redirect_stdout(trace):
+        min_circle_active_set(points, verbose=True)
+    lines = trace.getvalue().splitlines()
+    return len(lines), int(lines[-1].split("support=")[1].split()[0])
+
+
+def high_dimension_table() -> None:
+    """Print the active-set method against the pivoting one over `HIGH_DIMENSIONS`.
+
+    This is the regime the pivoting paper was written for and the one the other two
+    references cannot enter: Welzl's basis count is hopeless past ``d ~ 11`` and
+    Clarabel is asked to factor an ``n(d + 1)``-row system, so both are omitted.
+    What is left is the comparison that has something at stake, since both methods
+    here repair the factorisation of their support rather than rebuild it, both
+    spend the rest of each iteration in one ``O(nd)`` sweep, and they approach the
+    answer from opposite sides -- dual-feasible ascent against primal-feasible
+    deflation.
+
+    The step counts are comparable in this table in a way the two in
+    `dimension_sweep` are not: an active-set iteration and a pivot step each cost a
+    solve or projection of order ``r`` plus a sweep over all ``n``.
+    """
+    rng = np.random.default_rng(0)
+    steps = f"{'supp':>5} {'it_as':>6} {'pivots':>7}"
+    errors = f"{'err_as':>10} {'err_fgk':>10}"
+    print(f"\n{'d':>6} {steps} | {errors} | {'t_as':>8} {'t_fgk':>8} {'ratio':>6}")
+    for d in HIGH_DIMENSIONS:
+        points = rng.normal(size=(HIGH_POINTS, d))
+        t_as, r_as, c_as = timed(min_circle_active_set, points)
+        t_fg, r_fg, c_fg = timed(min_circle_fgk, points)
+        iterations, support = active_set_steps(points)
+        pivots = fgk_ball(points).iterations
+        print(
+            f"{d:>6} {support:>5} {iterations:>6} {pivots:>7} | "
+            f"{enclosure_error(points, r_as, c_as):>10.2e} "
+            f"{enclosure_error(points, r_fg, c_fg):>10.2e} | "
+            f"{t_as:>8.3f} {t_fg:>8.3f} {t_fg / t_as:>6.2f}"
+        )
+
+
 if __name__ == "__main__":
     main_table()
     dimension_sweep()
+    high_dimension_table()
