@@ -136,7 +136,21 @@ def _affine_null_space(face: np.ndarray) -> np.ndarray:
     if edges.shape[0] == 0:
         return np.zeros((1, 0))
 
-    left, singular_values, _ = np.linalg.svd(edges, full_matrices=True)
+    # Only the left factor is read.  When ``edges`` is no taller than it is wide the
+    # reduced decomposition already returns all ``m - 1`` of its columns -- a complete
+    # orthonormal basis of the edge row space *and* its null space -- so asking for the
+    # full one there buys nothing and costs the ``d x d`` right factor, built and then
+    # discarded.  That discarded factor dominates everything at large ``d``: 2 GB per
+    # call at ``d = 16000``, and about forty times the cost of the whole solve.
+    #
+    # The guard is not decoration.  Between a drop and the add that follows, the support
+    # can reach ``d + 2`` points, and on such a face the reduced left factor is
+    # ``(m - 1) x d`` -- one column short of spanning, and the column it is short of is
+    # exactly the null direction this function exists to find.  Reporting that face as
+    # affinely independent would send the caller to :func:`_face_weights` with a
+    # singular system.
+    complete = edges.shape[0] > edges.shape[1]
+    left, singular_values, _ = np.linalg.svd(edges, full_matrices=complete)
     cutoff = max(edges.shape) * float(np.finfo(np.float64).eps) * float(singular_values[0])
     rank = int(np.count_nonzero(singular_values > cutoff))
 

@@ -365,6 +365,43 @@ def test_active_set_dependent_and_dropping() -> None:
     assert radius == pytest.approx(min_circle_clarabel(points)[0], abs=1e-6)
 
 
+@pytest.mark.parametrize(
+    ("face", "expected"),
+    [
+        # m - 1 <= d, affinely independent: the cheap reduced path, no null directions.
+        (np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]), 0),
+        # m - 1 <= d, affinely dependent: three collinear points in space.
+        (np.array([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0], [2.0, 2.0, 2.0]]), 1),
+        # m - 1 > d: five points in the plane. Here the reduced left factor is 4 x 2
+        # and stops one column short, so an unguarded reduced SVD reports *no* null
+        # directions and the caller then solves a singular system.
+        (np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [2.0, 3.0]]), 2),
+        # m - 1 > d in one dimension, the tightest form of the same thing.
+        (np.array([[0.0], [1.0], [2.0]]), 1),
+    ],
+    ids=["independent", "dependent", "wider-support", "one-dimensional"],
+)
+def test_affine_null_space_spans_when_the_support_outgrows_the_dimension(face, expected) -> None:
+    """The null space is complete whether or not the support fits inside ``d``.
+
+    :func:`_affine_null_space` reads only the left factor of the SVD, so it asks for
+    the reduced decomposition -- the full one would build and discard a ``d x d``
+    right factor, which is the dominant cost of the whole solver at large ``d``. That
+    substitution is exact only while ``edges`` is no taller than it is wide, and the
+    support does reach ``d + 2`` points between a drop and the following add. The last
+    two cases are that situation: an unguarded reduced SVD returns zero null
+    directions for both, silently reclassifying a degenerate face as independent.
+    """
+    null_space = solver_module._affine_null_space(face)
+
+    assert null_space.shape == (len(face), expected)
+    for column in null_space.T:
+        # A null direction reshuffles the weights without moving the centre, so it
+        # must sum to zero and be annihilated by the points.
+        assert column.sum() == pytest.approx(0.0, abs=1e-12)
+        assert face.T @ column == pytest.approx(np.zeros(face.shape[1]), abs=1e-12)
+
+
 def test_active_set_is_exact_on_cospherical_points() -> None:
     """Points placed exactly on a sphere are recovered to machine precision.
 
