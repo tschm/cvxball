@@ -5,12 +5,33 @@ Guidance for Claude Code (and humans) working in this repository.
 ## What this project is
 
 `cvxball` computes the smallest enclosing sphere (minimum enclosing ball) of a
-set of points. The library lives in `src/cvxball/` and ships exactly one solver:
+set of points. The library lives in `src/cvxball/` and ships two solvers, which
+answer the same question from opposite sides and agree on the answer:
 
-- `min_circle_active_set` — an active-set QP method on the dual (a QP over the
-  unit simplex), maintaining the support set of points on the ball's boundary.
-  It terminates at an exact vertex rather than an interior-point
-  tolerance, and scales far better in the number of points.
+- `min_circle_active_set` (`src/cvxball/solver.py`) — the default. An active-set
+  QP method on the dual (a QP over the unit simplex), maintaining the support set
+  of points on the ball's boundary. It terminates at an exact vertex rather than
+  an interior-point tolerance, and scales far better in the number of points.
+  Dual-feasible throughout, so its ball encloses nothing until the last iteration
+  and its radius rises to the answer from below.
+- `min_circle_fgk` (`src/cvxball/fischer_gaertner_kutz.py`) — the
+  Fischer–Gärtner–Kutz pivoting method (ESA 2003): primal-feasible throughout,
+  deflating an enclosing ball by walking the centre towards the circumcentre of an
+  affinely independent support set. Implements the algorithm of the paper's Fig. 2
+  including both pivot rules (`pivot_rule="bland"` for the one Theorem 1 proves
+  terminating, `"heuristic"` for the faster one the paper's own code uses) and
+  section 4's dynamic QR: its own `_Frame` carries `Q` and `R` for the edge matrix
+  across pivots and repairs them in `O(dr)`, with `dynamic_qr=False` selecting the
+  rebuild as the baseline that says what the data structure is worth.
+  `ball_with_counts` is its fuller signature, returning the support set and the
+  pivot counts beside the ball.
+
+The active-set method is the default because it is the faster of the two on every
+cloud measured (Table 3 of the note: within a factor of 1.1 to 1.6 from `d = 1000`
+to `d = 16000`) and because its weights are a certificate the caller can check in
+one pass. Both are public: `from cvxball import min_circle_active_set,
+min_circle_fgk, ball_with_counts`. Both are held to the same expectations in
+`tests/test_solver.py`, whose shared cases are parametrised over the solvers.
 
 **NumPy and SciPy are the runtime dependencies, and clarabel is not.** SciPy
 earns its place through exactly one thing: `src/cvxball/_frame.py` uses
@@ -18,13 +39,15 @@ earns its place through exactly one thing: `src/cvxball/_frame.py` uses
 the support's factorisation in `O(dr)` instead of rebuilding it in `O(dr^2)`.
 That is worth 3.5x at `d = 8000`, nothing below `d ~ 100`, and a *loss* below
 `d ~ 50`, which is why `min_circle_active_set` dispatches on dimension
-(`_MAINTAIN_MIN_DIM`) rather than always taking that route. Do not widen the
+(`_MAINTAIN_MIN_DIM`) rather than always taking that route. The pivoting solver
+uses the same three routines for the same reason, plus
+`scipy.linalg.solve_triangular`, so it adds no import of its own. Do not widen the
 dependency set further without the same kind of measurement: `clarabel` stays in
 the `dev` group because the cone program it serves lives in `experiments/` and is
 a reference, not a solver this ships. `make deps` (deptry over `src`) is what
 catches an undeclared or unused one.
 
-Three *reference* implementations of the same problem live in `experiments/`,
+Two *reference* implementations of the same problem live in `experiments/`,
 which is not installed with the package:
 
 - `experiments/clarabel_ball.py` — the second-order-cone program assembled by
@@ -32,29 +55,18 @@ which is not installed with the package:
   `cvxball.solver`; it moved when clarabel became dev-only.
 - `experiments/welzl.py` — Welzl's randomised incremental algorithm, recursing on
   the boundary set so recursion depth stays at `d + 2`.
-- `experiments/fischer_gaertner_kutz.py` — the Fischer–Gärtner–Kutz pivoting
-  method (ESA 2003): primal-feasible throughout, deflating an enclosing ball by
-  walking the centre towards the circumcentre of an affinely independent support
-  set. Implements the algorithm of the paper's Fig. 2 including both pivot rules
-  (`pivot_rule="bland"` for the one Theorem 1 proves terminating, `"heuristic"`
-  for the faster one the paper's own code uses). Section 4's dynamic QR is here
-  too: `_Frame` carries `Q` and `R` for the edge matrix across pivots and repairs
-  them in `O(dr)`, and `dynamic_qr=False` selects the rebuild instead as the
-  baseline that says what the data structure is worth. Reproducing it is only
-  honest because `scipy.linalg` exposes `qr_insert`, `qr_delete` and `qr_update`
-  as compiled routines — written as a Python loop the Givens sweeps would lose to
-  one vectorised `numpy.linalg.qr` and would misstate the paper's claim rather
-  than test it. Uses `scipy.linalg.solve_triangular` too, which is fine here and
-  would not be inside `src/`.
 
-All three exist to be compared against, and `tests/test_solver.py` imports the
-Clarabel one and the Fischer–Gärtner–Kutz one so CI keeps checking that three
-independent implementations agree — those imports are why a root `conftest.py`
-exists (`pytest.ini` is template-owned and carries no `pythonpath`). Welzl's
-method is *not* under test; it is reached only by the benchmark.
+The pivoting method used to sit beside them and no longer does: it is a shipped
+solver, so it lives in `src/` and is held to the src gates (100% docstrings, `ty`,
+`mypy --strict`, bandit, the coverage gate). Both remaining references exist to be
+compared against, and `tests/test_solver.py` imports the Clarabel one so CI keeps
+checking that three independent implementations agree — that import is why a root
+`conftest.py` exists (`pytest.ini` is template-owned and carries no `pythonpath`).
+Welzl's method is *not* under test; it is reached only by the benchmark.
 `experiments/bench_seb.py` produces the tables in `docs/paper/seb.tex`.
 
-Two properties of the active-set code are load-bearing and easy to break:
+Both solvers are written to be scale- and origin-invariant, and for the
+active-set code the two properties are load-bearing and easy to break:
 it is **scale-invariant** (no tolerance is tied to coordinates of magnitude 1 —
 the affine-rank test runs on edge vectors, the feasibility slack is sized off the
 cloud's extent, the null-space direction is normalised before it meets a weight
@@ -77,7 +89,11 @@ Rhiza (then re-sync).
 
 ### Locally owned (change these here)
 
-- `src/cvxball/` — the library source.
+- `src/cvxball/` — the library source: `solver.py` (the active-set method),
+  `_frame.py` (its maintained factorisation), `fischer_gaertner_kutz.py` (the
+  pivoting method, which moved here from `experiments/` when it became a shipped
+  solver) and `__init__.py` (the public surface: both solvers plus
+  `ball_with_counts` and `Ball`).
 - `tests/test_solver.py` — the project's own test suite. Note `tests/` is *not*
   wholly local: `tests/test_rhiza_packaging.py` is synced.
 - `conftest.py` — puts the repo root on `sys.path` so the suite can import
@@ -173,7 +189,15 @@ its own in `.github/workflows/audit.yml`:
 There is no `make validate`, and `make deptry` is gone (the target is `deps`).
 Template drift is caught by the `check-managed-files` pre-commit hook instead.
 
-The project test suite covers `src/cvxball/` at 100%, above the 90% gate. CI runs
+The project test suite covers `src/cvxball/` at 100%, statements and branches
+both, well above the 90% gate. Holding that costs something worth knowing: the
+last lines to fall were the rebuild-on-refusal paths in both factorisations —
+`_frame.py`'s and the pivoting solver's `_Frame` — and no input reaches them, since
+the stability thresholds exist precisely to make a refused `qr_insert`,
+`qr_delete` or `qr_update` rare. They are reached by patching the routine to raise
+(`test_maintained_face_falls_back_when_an_update_is_refused`,
+`test_fgk_frame_falls_back_when_an_update_is_refused`), which is the idiom to
+follow for the next such path rather than lowering the bar. CI runs
 it on ubuntu, macOS and Windows across Python 3.11–3.14; the OS list comes from
 `ci-os-matrix` in `[tool.rhiza-task]`, without which it would default to
 ubuntu alone.
