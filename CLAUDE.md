@@ -31,7 +31,7 @@ Both exist to be compared against, and `tests/test_solver.py` imports the
 Clarabel one so CI keeps checking that two independent implementations agree —
 that import is why a root `conftest.py` exists (`pytest.ini` is template-owned
 and carries no `pythonpath`). `experiments/bench_seb.py` produces the tables in
-`paper/note.tex`.
+`docs/paper/note.tex`.
 
 Two properties of the active-set code are load-bearing and easy to break:
 it is **scale-invariant** (no tolerance is tied to coordinates of magnitude 1 —
@@ -63,16 +63,27 @@ Rhiza (then re-sync).
 - `experiments/` — reference implementations and benchmarks. Outside `packages`
   and `testpaths`, so the coverage, docstring and type gates do not reach it;
   `ruff` and `ruff-format` do.
-- `paper/` — `ball.tex` (the long form) and `note.tex` (four pages, with the
-  benchmark tables). Both build with `pdflatex <file>.tex` run twice.
+- `docs/paper/note.tex` — the four-page note, with the benchmark tables. It sits
+  in the docs tree because that is where rhiza's `paper` task looks: `make paper`
+  compiles the root document of `docs/paper/` with tectonic (rerunning until
+  cross-references converge) and leaves the PDF beside the source, which is what
+  lets `make book` publish it as a site asset with no copy step. `make
+  paper-clean` removes it again. `note.tex` is the only `.tex` at that folder's
+  top level, so it is unambiguously the root document; adding a second one there
+  would hand the compile to whichever sorts first unless one is named `main.tex`.
+  Both the PDF and the LaTeX aux files are gitignored by the template.
+- `paper/ball.tex` — the long form, and deliberately *not* under `docs/paper/`:
+  only one root document per folder gets compiled. It has no task of its own and
+  builds with `pdflatex ball.tex` run twice.
 - `pyproject.toml` — project metadata, dependencies, and local tool config
   (`[tool.deptry]`, `[tool.rhiza-task]`, `[tool.bumpversion]`).
 - `README.md` and any project-specific documentation.
 - `.github/workflows/release.yml` and `.github/workflows/audit.yml` — the repo's
   own workflows. Everything else under `.github/workflows/` is synced, so these
   two are deliberately *not* named `rhiza_*`.
-- `.rhiza/template.yml` — selects the template version (`template-branch`) and
-  platform profile (`profiles`). This file is *configuration you own*, even
+- `.rhiza/template.yml` — selects the template version (`template-branch`), the
+  platform profile (`profiles`) and any extra bundles on top of it (`templates`,
+  which is where `github-paper` comes from). This file is *configuration you own*, even
   though it lives under `.rhiza/`.
 
 ### Rhiza-owned (do not edit in place — change upstream and re-sync)
