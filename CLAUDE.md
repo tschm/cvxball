@@ -31,7 +31,7 @@ Both exist to be compared against, and `tests/test_solver.py` imports the
 Clarabel one so CI keeps checking that two independent implementations agree —
 that import is why a root `conftest.py` exists (`pytest.ini` is template-owned
 and carries no `pythonpath`). `experiments/bench_seb.py` produces the tables in
-`docs/paper/note.tex`.
+`docs/paper/seb.tex`.
 
 Two properties of the active-set code are load-bearing and easy to break:
 it is **scale-invariant** (no tolerance is tied to coordinates of magnitude 1 —
@@ -63,12 +63,12 @@ Rhiza (then re-sync).
 - `experiments/` — reference implementations and benchmarks. Outside `packages`
   and `testpaths`, so the coverage, docstring and type gates do not reach it;
   `ruff` and `ruff-format` do.
-- `docs/paper/note.tex` — the four-page note, with the benchmark tables. It sits
+- `docs/paper/seb.tex` — the four-page note, with the benchmark tables. It sits
   in the docs tree because that is where rhiza's `paper` task looks: `make paper`
   compiles the root document of `docs/paper/` with tectonic (rerunning until
   cross-references converge) and leaves the PDF beside the source, which is what
   lets `make book` publish it as a site asset with no copy step. `make
-  paper-clean` removes it again. `note.tex` is the only `.tex` at that folder's
+  paper-clean` removes it again. `seb.tex` is the only `.tex` at that folder's
   top level, so it is unambiguously the root document; adding a second one there
   would hand the compile to whichever sorts first unless one is named `main.tex`.
   Both the PDF and the LaTeX aux files are gitignored by the template.

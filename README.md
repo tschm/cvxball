@@ -61,7 +61,7 @@ against, not alternative ways to get an answer:
 
 Both are exercised by the test suite, which checks that all three agree, and by
 `experiments/bench_seb.py`, which produces the tables in
-[`docs/paper/note.tex`](docs/paper/note.tex). Neither is installed with the package, and
+[`docs/paper/seb.tex`](docs/paper/seb.tex). Neither is installed with the package, and
 `clarabel` and `scipy` are development dependencies. The cone program is still
 the more familiar formulation and the one to start from if you want to extend
 the model with further conic constraints.

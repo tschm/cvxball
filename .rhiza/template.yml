@@ -22,7 +22,7 @@ profiles:
 # of `github-project`, and it is the only piece of the LaTeX support that has to be
 # synced. The `paper`/`paper-clean` tasks themselves live in the pinned rhiza-task
 # CLI and own no files here, so `make paper` works without this -- what the bundle
-# adds is the CI workflow that compiles docs/paper/note.tex under `--strict` and
+# adds is the CI workflow that compiles docs/paper/seb.tex under `--strict` and
 # publishes the PDF (run artifact, book asset, and the `paper` branch).
 templates:
   - github-paper
