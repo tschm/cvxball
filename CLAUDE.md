@@ -88,17 +88,27 @@ Rhiza (then re-sync).
 
 ### Rhiza-owned (do not edit in place — change upstream and re-sync)
 
-Exactly the 28 paths in `.rhiza/template.lock`'s `files:` block — read that,
+Exactly the 26 paths in `.rhiza/template.lock`'s `files:` block — read that,
 don't infer from a directory name. The notable ones:
 
 - `.github/workflows/rhiza_*.yml` — CI, release, CodeQL, scorecard, benchmark,
-  book, marimo, weekly.
+  book, marimo, weekly, paper.
 - `Makefile` — a shim that forwards every target to a pinned `rhiza-task`.
 - `.pre-commit-config.yaml`, `pytest.ini`, `ruff.toml`, `.bandit`,
   `.editorconfig`, `.python-version`, `.gitignore`, `cliff.toml`.
-- `.github/rulesets/*`, `.github/dependabot.yml`, `.github/release.yml`.
+- `.github/dependabot.yml`, `.github/release.yml`, `.github/secret_scanning.yml`.
 - `tests/test_rhiza_packaging.py`, `.rhiza/semgrep.yml`, `docs/index.md`,
   `docs/mkdocs-base.yml`, `docs/development/rhiza.md`.
+
+`rhiza_paper.yml` is the newest of those and the only one that did not arrive
+with the `github-project` profile — see the `templates:` block in
+`.rhiza/template.yml`. It triggers only on changes under `docs/paper/**`, runs
+the same `paper` task as locally but under `--strict` (so a runner without
+tectonic fails rather than reporting a skip as success), and publishes the PDF
+three ways: the run artifact, the book, and a dedicated `paper` branch. That
+last one is why this repo must never carry a `paper/<topic>` branch: git refs
+are paths, so `refs/heads/paper` cannot coexist with one, and the workflow
+preflights for exactly that.
 
 The `check-managed-files` pre-commit hook rejects a commit touching any of them.
 To change Rhiza-owned behavior, open a PR against `jebel-quant/rhiza`, cut a
