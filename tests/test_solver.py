@@ -10,6 +10,7 @@ from hypothesis.extra.numpy import arrays
 from scipy.optimize import linprog
 
 import cvxball.solver as solver_module
+import experiments.fischer_gaertner_kutz as fgk_module
 from cvxball.solver import min_circle_active_set
 
 # The Clarabel route is not part of the package any more -- it lives in
@@ -19,9 +20,16 @@ from cvxball.solver import min_circle_active_set
 # shipping it, not to stop testing against it.
 from experiments.clarabel_ball import min_circle_clarabel
 
-# Both routes share one interface, so the shared expectations below run against each.
-SOLVERS = [min_circle_clarabel, min_circle_active_set]
-SOLVER_IDS = ["clarabel", "active_set"]
+# The Fischer-Gärtner-Kutz pivoting method, likewise from `experiments/`. It earns a
+# place here for the same reason and one more: it is primal-feasible throughout, so
+# every iterate is already an enclosing ball, where the active-set method reaches
+# feasibility only at the optimum. Two methods that are wrong in the same way would
+# have to be wrong for unrelated reasons.
+from experiments.fischer_gaertner_kutz import ball_with_counts, min_circle_fgk
+
+# All three routes share one interface, so the shared expectations below run against each.
+SOLVERS = [min_circle_clarabel, min_circle_active_set, min_circle_fgk]
+SOLVER_IDS = ["clarabel", "active_set", "fgk"]
 
 # Bounded, finite coordinates keep the conic programs well-conditioned.
 _coords = st.floats(min_value=-100.0, max_value=100.0, allow_nan=False, allow_infinity=False, width=64)
@@ -146,6 +154,126 @@ def test_active_set_agrees_with_clarabel(points: np.ndarray) -> None:
     # the loose one here: on a cloud whose points all sit on the optimal sphere it
     # misplaces the centre by ~3e-4, where the active-set method is exact.
     assert np.linalg.norm(center_a - center_c) <= 1e-3 * max(1.0, radius_c)
+
+
+# --- The Fischer-Gärtner-Kutz pivoting method ----------------------------------
+
+
+@pytest.mark.property
+@settings(deadline=None, max_examples=50)
+@given(points=_point_clouds())
+def test_fgk_agrees_with_active_set(points: np.ndarray) -> None:
+    """The pivoting method and the active-set method find the same ball.
+
+    Both are exact combinatorial methods, so unlike the Clarabel comparison this
+    one is held to a near-machine standard rather than to interior-point accuracy.
+    The centre is compared relative to the radius: the two methods build it
+    differently -- one solves afresh for the circumcentre of its final support, the
+    other accumulates the walks that reached it -- so they agree on the ball
+    without agreeing bit-for-bit on its coordinates.
+    """
+    radius_f, center_f = min_circle_fgk(points)
+    radius_a, center_a = min_circle_active_set(points)
+
+    assert radius_f == pytest.approx(radius_a, abs=1e-9, rel=1e-9)
+    assert np.linalg.norm(center_f - center_a) <= 1e-8 * max(1.0, radius_a)
+    _assert_is_minimal_ball(points, radius_f, center_f)
+
+
+@pytest.mark.parametrize("pivot_rule", ["heuristic", "bland"])
+def test_fgk_pivot_rules_agree_on_cospherical_points(pivot_rule: str) -> None:
+    """Both pivot rules solve the paper's hardest case: points on a common sphere.
+
+    Cospherical input is where the degeneracy the rules exist for actually bites --
+    every point is a candidate for the support, so points enter it only to be
+    dropped again. Bland's rule is what Theorem 1 proves terminating; the heuristic
+    is what the paper's own code runs. Both must land on the unit sphere.
+    """
+    rng = np.random.default_rng(11)
+    points = rng.normal(size=(200, 5))
+    points /= np.linalg.norm(points, axis=1, keepdims=True)
+
+    ball = ball_with_counts(points, pivot_rule=pivot_rule)
+
+    assert ball.radius == pytest.approx(1.0, rel=1e-9)
+    assert np.linalg.norm(ball.centre) <= 1e-9
+
+
+def test_fgk_support_is_on_the_boundary_and_affinely_independent() -> None:
+    """The returned support set carries the ball, which is the method's invariant.
+
+    Every support point must sit on the sphere, there can be at most ``d + 1`` of
+    them, and they must be affinely independent -- the invariant of Fig. 2 that the
+    stability threshold exists to protect in floating point.
+    """
+    rng = np.random.default_rng(3)
+    points = rng.normal(size=(300, 6))
+
+    ball = ball_with_counts(points)
+    support = points[ball.support]
+
+    assert 1 <= len(ball.support) <= points.shape[1] + 1
+    distances = np.linalg.norm(support - ball.centre, axis=1)
+    assert distances == pytest.approx(ball.radius, rel=1e-9)
+
+    edges = support[1:] - support[0]
+    assert np.linalg.matrix_rank(edges) == len(edges), "support is affinely dependent"
+
+
+def test_fgk_centre_lies_in_the_hull_of_its_support() -> None:
+    """Lemma 1: the ball is optimal exactly when the centre is in ``conv(T)``.
+
+    This is the certificate the algorithm terminates on, so it is worth asserting
+    against the support the method actually returns rather than against the
+    boundary points recovered by distance in :func:`_assert_is_minimal_ball`.
+    """
+    rng = np.random.default_rng(5)
+    points = rng.normal(size=(150, 4))
+
+    ball = ball_with_counts(points)
+    support = points[ball.support]
+
+    result = linprog(
+        c=np.zeros(len(support)),
+        A_eq=np.vstack([support.T, np.ones(len(support))]),
+        b_eq=np.concatenate([ball.centre, [1.0]]),
+        bounds=[(0.0, None)] * len(support),
+        method="highs",
+    )
+    assert result.status == 0, "centre is not a convex combination of the support"
+
+
+def test_fgk_rejects_an_unknown_pivot_rule() -> None:
+    """A misspelled rule fails loudly rather than silently picking a default."""
+    with pytest.raises(ValueError, match="pivot_rule must be"):
+        ball_with_counts(np.array([[0.0, 0.0], [1.0, 0.0]]), pivot_rule="dantzig")
+
+
+def test_fgk_verbose_logs_phases(capsys) -> None:
+    """Verbose mode names the phase of each pivot step and the final ball."""
+    rng = np.random.default_rng(1)
+    min_circle_fgk(rng.normal(size=(80, 3)), verbose=True)
+
+    out = capsys.readouterr().out
+    assert "optimal" in out
+    assert "fgk: iterations=" in out
+
+
+def test_fgk_iteration_limit(monkeypatch) -> None:
+    """The safety net fires rather than looping forever if termination fails."""
+    monkeypatch.setattr(fgk_module, "_MAX_ITER_PER_POINT", 0)
+    with pytest.raises(ValueError, match="did not converge"):
+        min_circle_fgk(np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]))
+
+
+def test_fgk_does_not_mutate_input() -> None:
+    """Recentring must not be done in place on the caller's array."""
+    points = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [2.0, 3.0]])
+    original = points.copy()
+
+    min_circle_fgk(points)
+
+    np.testing.assert_array_equal(points, original)
 
 
 # --- Degenerate inputs (issue #269) --------------------------------------------

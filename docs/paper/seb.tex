@@ -1,5 +1,5 @@
-% note.tex -- Smallest enclosing balls by an active-set method on the dual.
-% Build:  pdflatex note.tex   (twice)   or   tectonic note.tex
+% seb.tex -- Smallest enclosing balls by an active-set method on the dual.
+% Build:  pdflatex seb.tex   (twice)   or   tectonic seb.tex
 
 \documentclass[10pt,a4paper]{article}
 
@@ -236,49 +236,67 @@ from~\eqref{eq:kkt} at the cost of one pass over the data, without re-solving.
 \section{A numerical comparison}
 
 Table~\ref{tab:bench} compares the method with Clarabel~0.11.1
-applied to~\eqref{eq:primal} and with Welzl's algorithm~\cite{welzl1991}, on
-Gaussian clouds. Two quantities are reported, because either alone would
-mislead.
+applied to~\eqref{eq:primal}, with Welzl's algorithm~\cite{welzl1991}, and with
+the pivoting method of Fischer, G\"artner and Kutz~\cite{fischer2003} discussed
+in Section~8, on Gaussian clouds. Two quantities are reported, because either
+alone would mislead.
 
 The first is the relative enclosure error $\max_i\norm{p_i-x}/R-1$, where a
 positive value means the returned ball does not in fact contain the cloud. It is
-a deterministic property of the returned pair, free of timing noise. Here the two
-basis-terminating methods are indistinguishable --- both come in at zero or a
-single ulp, since each returns a centre from an exact subproblem solve and a
-radius that is by construction the maximum distance over its own support --- while
-Clarabel reports its interior-point residuals, three to five orders larger. The
-exactness is thus a property of terminating at a basis, not of this method in
-particular; Section~7 is where the two basis methods actually differ.
+a deterministic property of the returned pair, free of timing noise. Here the
+three combinatorial methods are indistinguishable --- all come in at zero or a
+single ulp, against Clarabel's interior-point residuals three to five orders
+larger --- because each returns a radius that is by construction the maximum
+distance over its own support. The exactness is thus a property of terminating at
+a basis, not of this method in particular.
+
+One ulp of that is worth naming, since it is the only place the three separate.
+The method of Section~2 solves afresh for the circumcentre of its final support
+and lands on zero; the pivoting method reports the running sum of the walks that
+carried its centre there, and so shows a single positive ulp on four of the seven
+rows. Both identify the same support set. The difference is in the arithmetic
+that produces the centre, not in the combinatorics that select it, and at
+$2.2\cdot10^{-16}$ it is of no practical consequence --- it is recorded only
+because a column of exact zeros beside a column of ulps invites the wrong
+inference.
 
 The second is wall-clock time, and it must be read as a comparison of
-\emph{implementations}. The method of Section~2 spends its time in one vectorised
-sweep per iteration, whereas Welzl's recursion evaluates a containment predicate
-per step in scalar Python; a good deal of the gap in the $t$ columns is CPython
-against NumPy rather than one algorithm against another. The basis count is
-therefore given alongside: the number of circumspheres the recursion computes is
-a property of the algorithm and the input in any language.
+\emph{implementations}. The method of Section~2 and the pivoting method each
+spend their time in one vectorised sweep per iteration, whereas Welzl's recursion
+evaluates a containment predicate per step in scalar Python; a good deal of the
+gap in the $t$ columns is CPython against NumPy rather than one algorithm against
+another. A step count is therefore given alongside each combinatorial method that
+has an informative one: the circumspheres Welzl computes, and the pivot steps the
+walking method takes. Both are properties of the algorithm and the input in any
+language --- but they count different things, a solve over at most $d+1$ points
+against a projection plus a sweep over all $n$, and so track each method against
+itself rather than against the other.
 
 \begin{table}[h]
 \centering
 \small
-\begin{tabular}{rr rrr rrr r}
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{rr rrrr rrrr rr}
   \toprule
-  & & \multicolumn{3}{c}{enclosure error} & \multicolumn{3}{c}{time (s)} & \\
-  \cmidrule(lr){3-5}\cmidrule(lr){6-8}
-  $n$ & $d$ & active set & Clarabel & Welzl & active set & Clarabel & Welzl & bases \\
+  & & \multicolumn{4}{c}{enclosure error} & \multicolumn{4}{c}{time (s)} & \multicolumn{2}{c}{steps} \\
+  \cmidrule(lr){3-6}\cmidrule(lr){7-10}\cmidrule(lr){11-12}
+  $n$ & $d$ & act.\ set & pivoting & Clarabel & Welzl
+      & act.\ set & pivoting & Clarabel & Welzl & pivots & bases \\
   \midrule
-  $10^3$ &  2 & $0$                 & $5.3\cdot10^{-12}$  & $2.2\cdot10^{-16}$ & 0.000 & 0.008 & 0.010 & 265 \\
-  $10^3$ &  5 & $-2.2\cdot10^{-16}$ & $-7.2\cdot10^{-12}$ & $2.2\cdot10^{-16}$ & 0.000 & 0.033 & 0.018 & 592 \\
-  $10^4$ &  3 & $0$                 & $3.8\cdot10^{-12}$  & $0$                & 0.001 & 0.174 & 0.445 & 2\,406 \\
-  $10^4$ & 20 & $0$                 & $1.0\cdot10^{-12}$  & ---                & 0.006 & 0.934 & ---   & --- \\
-  $10^5$ &  2 & $0$                 & $-8.0\cdot10^{-13}$ & $0$                & 0.003 & 1.502 & 0.961 & 813 \\
-  $10^5$ &  3 & $0$                 & $1.3\cdot10^{-10}$  & $0$                & 0.009 & 1.997 & 4.073 & 5\,998 \\
-  $10^5$ & 10 & $0$                 & $-1.3\cdot10^{-12}$ & ---                & 0.015 & 6.972 & ---   & --- \\
+  $10^3$ &  2 & $0$                 & $-1.1\cdot10^{-16}$ & $5.3\cdot10^{-12}$  & $2.2\cdot10^{-16}$ & 0.000 & 0.000 & 0.008 & 0.010 & 3  & 265 \\
+  $10^3$ &  5 & $-2.2\cdot10^{-16}$ & $2.2\cdot10^{-16}$  & $-7.2\cdot10^{-12}$ & $2.2\cdot10^{-16}$ & 0.000 & 0.001 & 0.032 & 0.018 & 21 & 592 \\
+  $10^4$ &  3 & $0$                 & $0$                 & $3.8\cdot10^{-12}$  & $0$                & 0.001 & 0.001 & 0.175 & 0.452 & 10 & 2\,406 \\
+  $10^4$ & 20 & $0$                 & $2.2\cdot10^{-16}$  & $1.0\cdot10^{-12}$  & ---                & 0.006 & 0.015 & 0.983 & ---   & 90 & --- \\
+  $10^5$ &  2 & $0$                 & $2.2\cdot10^{-16}$  & $-8.0\cdot10^{-13}$ & $0$                & 0.003 & 0.007 & 1.524 & 0.953 & 5  & 813 \\
+  $10^5$ &  3 & $0$                 & $0$                 & $1.3\cdot10^{-10}$  & $0$                & 0.007 & 0.010 & 2.016 & 4.031 & 10 & 5\,998 \\
+  $10^5$ & 10 & $0$                 & $2.2\cdot10^{-16}$  & $-1.3\cdot10^{-12}$ & ---                & 0.020 & 0.051 & 7.168 & ---   & 43 & --- \\
   \bottomrule
 \end{tabular}
 \caption{Standard normal clouds, one per row; median of three runs. Apple M4 Pro,
 CPython 3.12.13, NumPy 2.5.1, Clarabel 0.11.1 at default tolerances. Welzl was
-not attempted on the rows marked ---; Table~\ref{tab:sweep} measures that limit.}
+not attempted on the rows marked ---; Table~\ref{tab:sweep} measures that limit.
+The pivoting method runs the heuristic pivot rule of~\cite{fischer2003}, with the
+$QR$ of the edge matrix rebuilt each pivot rather than updated.}
 \label{tab:bench}
 \end{table}
 
@@ -292,30 +310,52 @@ not attempted on the rows marked ---; Table~\ref{tab:sweep} measures that limit.
   \midrule
   Welzl bases, median $/10^3$ & 0.19 & 1.05 & 2.50 & 6.4 & 12.0 & 21.4 & 58.6 & 115 & 189 & 276 \\
   Welzl bases, worst $/10^3$  & 0.55 & 1.70 & 4.92 & 12.9 & 35.9 & 49.3 & 194  & 577 & 864 & 1602 \\
-  Welzl time (s)              & 0.006 & 0.027 & 0.053 & 0.143 & 0.234 & 0.490 & 1.174 & 2.593 & 3.714 & 5.493 \\
-  active-set time (ms)        & 0.2 & 0.2 & 0.3 & 0.5 & 0.9 & 0.7 & 0.8 & 0.7 & 0.6 & 0.6 \\
+  pivots, median              & 5 & 6 & 8 & 10 & 15 & 11 & 18 & 18 & 18 & 21 \\
+  pivots, worst               & 6 & 15 & 11 & 18 & 25 & 23 & 33 & 34 & 36 & 52 \\
+  Welzl time (s)              & 0.007 & 0.026 & 0.053 & 0.143 & 0.236 & 0.491 & 1.181 & 2.675 & 3.796 & 5.692 \\
+  pivoting time (ms)          & 0.2 & 0.3 & 0.4 & 0.5 & 1.0 & 0.8 & 1.3 & 0.9 & 0.9 & 1.1 \\
+  active-set time (ms)        & 0.2 & 0.3 & 0.3 & 0.4 & 0.5 & 0.5 & 1.0 & 0.6 & 0.6 & 0.6 \\
   \bottomrule
 \end{tabular}
 \caption{Growth in $d$ at $n=10^3$: medians over 15 seeds, worst seed on the
-second line. Medians are necessary --- the basis count is high-variance, and a
-mean over five seeds still puts $d=11$ below $d=10$.}
+second line of each pair. Medians are necessary --- the basis count is
+high-variance, and a mean over five seeds still puts $d=11$ below $d=10$.}
 \label{tab:sweep}
 \end{table}
 
 Table~\ref{tab:sweep} isolates the dependence on $d$ at fixed $n$. Welzl's median
 basis count rises from $191$ to $275\,574$ between $d=2$ and $d=11$, a factor
 between $1.5$ and $2.7$ per dimension across the upper half of that range, while
-the active-set time stays flat at $0.6$--$0.9$\,ms throughout: its work per
-iteration is a solve of order at most $d$, and $d$ is small. The worst-seed column
-matters as much as the median. At $d=11$ one of fifteen clouds cost $1.6$~million
-basis computations, six times the median, so the distribution has a tail that a
-single measurement will not find --- which is the practical form the
-expected-time analysis takes.
+both simplex-like methods stay under a millisecond throughout: their work per
+iteration is a solve or a projection of order at most $d$, and $d$ is small.
 
-Neither comparison is fair to its subject: Clarabel is built for large sparse
-programs of arbitrary shape, and Welzl's recursion is being run in the least
-favourable language for one. That the specialised method wins on its own problem
-is the weakest possible claim, and the only one made here.
+The two step counts are what the sweep is really for, and they part company
+completely. Welzl's grows by three orders of magnitude over these ten dimensions;
+the pivot count grows from $5$ to $21$, by a factor of four. That is the
+separation the pivoting method was built for, and it is visible here at $d\le11$
+even though the regime it was built for begins far higher. The worst-seed lines
+matter as much as the medians. At $d=11$ one of fifteen clouds cost $1.6$~million
+basis computations, six times the median, where the worst pivot count is $52$
+against a median of $21$ --- a factor of $2.5$. Both distributions have a tail
+that a single measurement will not find, which is the practical form the
+expected-time analysis takes; the tails are simply not the same size.
+
+None of the three comparisons is fair to its subject, and the third is the least
+fair. Clarabel is built for large sparse programs of arbitrary shape, and Welzl's
+recursion is being run in the least favourable language for one. The pivoting
+method is handicapped more specifically: the implementation measured here
+reproduces the algorithm but not the data structure, rebuilding the $QR$ of the
+edge matrix at every pivot where~\cite{fischer2003} updates it by Givens
+rotations in $O(d^2)$. Omitting it is deliberate --- a Givens sweep in interpreted
+Python would run slower than one call into LAPACK, so implementing it would
+misstate their claim rather than test it --- but it means the $t$ columns show two
+NumPy programs of similar shape, one doing avoidable work per pivot at values of
+$d$ too small for it to matter. At $d=20$ the pivoting method takes $2.5$ times
+the active-set time; nothing in that ratio should be carried to the $d\sim10^3$
+regime their paper reports, where the discarded data structure is the point. That
+the specialised method wins on its own problem, in its own regime, against
+implementations chosen for clarity is the weakest possible claim, and the only one
+made here.
 
 \section{Relation to the minimum-norm point problem}
 
@@ -398,7 +438,10 @@ Section~2 rebuilds $DD\T$ and solves it afresh at every pivot. That is
 affordable while $d$ is small and is why they report $d$ up to $2\,000$ and this
 note stops at $20$. In the other direction their per-pivot cost does not fall
 with $n$ while the $O(nd)$ sweep vectorises, which is the regime
-Table~\ref{tab:bench} lives in. One of their observations deserves flagging:
+Table~\ref{tab:bench} lives in --- and where, on the evidence of its pivoting
+columns, the two are separated by a small constant factor rather than by anything
+structural, their pivot counts there running from $3$ to $90$. One of their
+observations deserves flagging:
 almost-cospherical clouds are their \emph{hardest} inputs, points entering and
 leaving the support repeatedly, whereas cospherical inputs are where the method
 here is at its most accurate. Both can hold at once --- theirs is a claim about

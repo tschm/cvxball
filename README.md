@@ -50,7 +50,7 @@ against 7 s for the same problem handed to an interior-point cone solver.
 
 ### 📐 Reference implementations
 
-Two other routes to the same answer live in [`experiments/`](experiments/),
+Three other routes to the same answer live in [`experiments/`](experiments/),
 where they are what they have become — the references this solver is measured
 against, not alternative ways to get an answer:
 
@@ -58,13 +58,20 @@ against, not alternative ways to get an answer:
 |---|---|
 | `experiments/clarabel_ball.py` | Assembles the second-order cone program directly and calls [Clarabel](https://clarabel.org), with no modelling-layer canonicalisation in between. |
 | `experiments/welzl.py` | Welzl's randomised incremental algorithm, recursing on the boundary set. |
+| `experiments/fischer_gaertner_kutz.py` | The pivoting method of [Fischer, Gärtner and Kutz](https://people.mpi-inf.mpg.de/alumni/d1/2009/mkutz/pubs/FiGaeKu_SmallEnclBalls.pdf) (ESA 2003): start with a ball that already encloses everything and deflate it, walking the centre towards the circumcentre of a support set. Both of the paper's pivot rules are implemented — Bland's, which the termination proof needs, and the faster heuristic the paper's own code runs. |
 
-Both are exercised by the test suite, which checks that all three agree, and by
-`experiments/bench_seb.py`, which produces the tables in
-[`docs/paper/seb.tex`](docs/paper/seb.tex). Neither is installed with the package, and
-`clarabel` and `scipy` are development dependencies. The cone program is still
-the more familiar formulation and the one to start from if you want to extend
-the model with further conic constraints.
+The cone program and the pivoting method are exercised by the test suite, which
+checks that those two and the shipped solver agree; Welzl's method is reached
+only through `experiments/bench_seb.py`, which produces the tables in
+[`docs/paper/seb.tex`](docs/paper/seb.tex). None of the three is installed with
+the package, and `clarabel` and `scipy` are development dependencies.
+
+The pivoting method is the interesting neighbour of the shipped solver: it
+attacks the same geometry from the opposite side. The active-set method works
+the dual and is feasible only at the optimum; the pivoting method keeps a valid
+enclosing ball at every step. The cone program remains the more familiar
+formulation, and the one to start from if you want to extend the model with
+further conic constraints.
 
 ## 🧮 Background
 
