@@ -332,6 +332,35 @@ high-variance, and a mean over five seeds still puts $d=11$ below $d=10$.}
 \label{tab:sweep}
 \end{table}
 
+\begin{table}[h]
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{r rrr rr rrr}
+  \toprule
+  & \multicolumn{3}{c}{steps} & \multicolumn{2}{c}{enclosure error} & \multicolumn{3}{c}{time (s)} \\
+  \cmidrule(lr){2-4}\cmidrule(lr){5-6}\cmidrule(lr){7-9}
+  $d$ & support & act.\ set & pivoting & act.\ set & pivoting
+      & act.\ set & pivoting & ratio \\
+  \midrule
+  $1\,000$  &  92 &  92 & 197 & $-4.4\cdot10^{-16}$ & $0$                 & 0.148 & 0.232 & 1.56 \\
+  $2\,000$  & 124 & 128 & 208 & $-1.1\cdot10^{-16}$ & $-1.1\cdot10^{-16}$ & 0.302 & 0.355 & 1.18 \\
+  $4\,000$  & 177 & 177 & 249 & $-6.7\cdot10^{-16}$ & $0$                 & 1.296 & 1.450 & 1.12 \\
+  $8\,000$  & 217 & 217 & 328 & $-1.0\cdot10^{-15}$ & $0$                 & 2.760 & 3.272 & 1.19 \\
+  $16\,000$ & 283 & 283 & 352 & $-1.4\cdot10^{-15}$ & $0$                 & 7.869 & 8.457 & 1.07 \\
+  \bottomrule
+\end{tabular}
+\caption{Growth in $d$ at $n=10^3$: standard normal clouds, one per row, median of
+three runs. Same machine as Table~\ref{tab:bench}, with SciPy~1.18.0. Both methods
+repair the $QR$ of their support's edge matrix rather than rebuilding it, and both
+identify the same support set, whose size is the first column. \emph{Steps} are
+active-set iterations against pivot steps; unlike the pair in
+Table~\ref{tab:sweep} these two count comparable work, one solve or projection of
+order $r$ plus one $O(nd)$ sweep each. Welzl's method and Clarabel are not run
+here: neither finishes in this regime.}
+\label{tab:highd}
+\end{table}
+
 Table~\ref{tab:sweep} isolates the dependence on $d$ at fixed $n$. Welzl's median
 basis count rises from $191$ to $275\,574$ between $d=2$ and $d=11$, a factor
 between $1.5$ and $2.7$ per dimension across the upper half of that range, while
@@ -349,19 +378,62 @@ against a median of $21$ --- a factor of $2.5$. Both distributions have a tail
 that a single measurement will not find, which is the practical form the
 expected-time analysis takes; the tails are simply not the same size.
 
+Table~\ref{tab:highd} turns both of those tables around: $n=10^3$ fixed and $d$
+from $10^3$ to $1.6\cdot10^4$, which is the regime~\cite{fischer2003} was written
+for and the first one in which the linear algebra rather than the combinatorics
+decides the cost. Neither of the other two references appears in it. Welzl's
+median basis count is already $2.8\cdot10^5$ at $d=11$, and Clarabel would be
+handed a program of $n(d+1)\approx1.6\cdot10^7$ rows to factor. Both methods that
+remain carry the $QR$ of their support's edge matrix across pivots and repair it in
+$O(dr)$ as points enter and leave, in place of rebuilding it in $O(dr^2)$:
+section~4 of~\cite{fischer2003} for the pivoting method, and the same three
+compiled Givens updates for the method of Section~2, which is what lets it appear
+in this table at all. Repairing is not free everywhere --- measured on these
+clouds it is worth a factor of $3.5$ at $d=8\,000$, is at parity near $d=100$, and
+loses below that, where the per-update overhead exceeds the small dense solve it
+replaces --- so the implementation dispatches on $d$ rather than committing to one
+route.
+
+The step counts are comparable in this table in a way the two of
+Table~\ref{tab:sweep} are not: an active-set iteration and a pivot step each cost
+one solve or projection of order $r$ plus one $O(nd)$ sweep. They separate by
+about a factor of two, in the direction the mechanics predict. The active-set
+count equals the final support size on four of the five rows --- on Gaussian data
+the method adds points and essentially never drops one, so it spends one iteration
+per support point, the $d=2\,000$ row costing four extra iterations for four drops
+--- while the pivoting method takes $1.2$ to $2.1$ times as many steps. That is
+the price of never taking a full step: each walk is truncated by the first point of
+$S$ to touch the shrinking sphere, so a point enters after a partial move rather
+than after a jump to $\mathrm{cc}(F)$. The wall clocks do not separate by anything
+like that factor. Their ratio sits between $1.1$ and $1.6$ with no trend in $d$,
+and repeat runs of one row move it by a few percent, so it should be read as a
+small constant factor rather than as a curve: with $r$ in the hundreds both methods
+spend most of each iteration in the same two places, the sweep over the cloud and
+the repair of the factorisation, and the pivoting method's extra steps are its
+cheapest ones.
+
+Two further things in the table are worth naming. The support size grows like
+$\sqrt d$ on these clouds --- $92$ points at $d=10^3$ and $283$ at
+$d=1.6\cdot10^4$, a factor near $\sqrt2$ per doubling --- so it stays an order of
+magnitude or more below the Carath\'eodory bound $d+1$, and the per-iteration solve
+is of that order rather than of $d$. With $O(\sqrt d)$ iterations of $O(nd)$ each
+the total should scale as roughly $d^{3/2}$, and it does: a $53$-fold increase in
+time over a $16$-fold increase in $d$. And the enclosure errors stay at a few ulp,
+for both methods, across four doublings of $d$ --- so the exactness of
+Table~\ref{tab:bench} is a property of terminating at a basis, not of small $d$.
+
 None of the three comparisons is fair to its subject, and the third is the least
 fair. Clarabel is built for large sparse programs of arbitrary shape, and Welzl's
 recursion is being run in the least favourable language for one. The pivoting
-method is handicapped more specifically: the implementation measured here
-reproduces the algorithm but not the data structure, rebuilding the $QR$ of the
-edge matrix at every pivot where~\cite{fischer2003} updates it by Givens
-rotations in $O(d^2)$. Omitting it is deliberate --- a Givens sweep in interpreted
-Python would run slower than one call into LAPACK, so implementing it would
-misstate their claim rather than test it --- but it means the $t$ columns show two
-NumPy programs of similar shape, one doing avoidable work per pivot at values of
-$d$ too small for it to matter. At $d=20$ the pivoting method takes $2.5$ times
-the active-set time; nothing in that ratio should be carried to the $d\sim10^3$
-regime their paper reports, where the discarded data structure is the point. That
+method carries a narrower handicap, and only in Tables~\ref{tab:bench}
+and~\ref{tab:sweep}: its columns there were measured with the $QR$ of the edge
+matrix rebuilt at every pivot, where~\cite{fischer2003} updates it by Givens
+rotations in $O(d^2)$. At $d\le20$ that costs it little, the factorisation being of
+order at most $21$, which is why those two tables were left as measured and
+Table~\ref{tab:highd} --- where the data structure is the whole point --- runs both
+methods with it in place. At $d=20$ the pivoting method takes $2.5$ times the
+active-set time; nothing in that ratio should be carried to the $d\sim10^3$ regime
+their paper reports, and Table~\ref{tab:highd} is what happens there instead. That
 the specialised method wins on its own problem, in its own regime, against
 implementations chosen for clarity is the weakest possible claim, and the only one
 made here.
@@ -439,18 +511,27 @@ when it is not too close to $\aff(T)$. Section~2 permits dependence and answers
 it, with a descent direction in the null space. Neither is the better choice in
 general: theirs avoids a case, this one resolves it.
 
-Their linear algebra is the stronger, and it decides the regime each method is
-good for. They never refactorise --- a dynamic $QR$ of the edge matrix, updated
-by Givens rotations in $O(d^2)$ per insertion, exploiting that
-$\mathrm{cc}(T)$ is the orthogonal projection of $c$ onto $\aff(T)$ --- where
-Section~2 rebuilds $DD\T$ and solves it afresh at every pivot. That is
-affordable while $d$ is small and is why they report $d$ up to $2\,000$ and this
-note stops at $20$. In the other direction their per-pivot cost does not fall
-with $n$ while the $O(nd)$ sweep vectorises, which is the regime
-Table~\ref{tab:bench} lives in --- and where, on the evidence of its pivoting
-columns, the two are separated by a small constant factor rather than by anything
-structural, their pivot counts there running from $3$ to $90$. One of their
-observations deserves flagging:
+Their linear algebra came first, and it is what decides the regime either method
+is good for. They never refactorise --- a dynamic $QR$ of the edge matrix, updated
+by Givens rotations in $O(d^2)$ per insertion, exploiting that $\mathrm{cc}(T)$ is
+the orthogonal projection of $c$ onto $\aff(T)$. Section~2 now carries the same
+factorisation, above the dimension where the compiled updates start to pay for
+themselves, and reads three quantities off its triangular factor $R$ instead of
+the points: $DD\T=R\T R$ makes~\eqref{eq:sub} two triangular solves, $\ker D\T$ is
+$\ker R$, and the right-hand side is the squared column norms of $R$. What the two
+ask of the factorisation still differs --- a projection of $c$ there, barycentric
+weights here, which this method needs anyway as its certificate --- and so does
+what they tolerate: an economic $QR$ cannot represent a dependent support, so the
+degenerate faces Section~2 permits are met by refactorising, which is affordable
+only because they are rare. Table~\ref{tab:highd} is the two methods with that
+structure in place on both sides, out to $d=1.6\cdot10^4$, past the $2\,000$ their
+paper reports: the same support on every row, a factor of two between the step
+counts, and between $1.1$ and $1.6$ between the times. In the other direction
+their per-pivot cost does not fall with $n$ while the $O(nd)$ sweep vectorises,
+which is the regime Table~\ref{tab:bench} lives in --- and where, on the evidence
+of its pivoting columns, the two are again separated by a small constant factor
+rather than by anything structural, their pivot counts there running from $3$ to
+$90$. One of their observations deserves flagging:
 almost-cospherical clouds are their \emph{hardest} inputs, points entering and
 leaving the support repeatedly, whereas cospherical inputs are where the method
 here is at its most accurate. Both can hold at once --- theirs is a claim about
@@ -463,8 +544,10 @@ Hearn~\cite{elzinga1972} gave an early finite algorithm of this type, and
 Sections~7 and~8 place it against the two exact lines of work that followed. Of
 those this method is of the quadratic-programming one, after G\"artner and
 Sch\"onherr~\cite{gaertner2000}, whose reservation that a QP formulation needed
-exact arithmetic past a few hundred dimensions this note cannot dispute --- its
-measurements stop at $d=20$. The QP machinery is standard~\cite{nocedal2006}. An
+exact arithmetic past a few hundred dimensions Table~\ref{tab:highd} bears on
+without settling: in double precision the method returns a ball out to
+$d=1.6\cdot10^4$ whose enclosure error is a few ulp, on Gaussian clouds, which are
+not the inputs that reservation was about. The QP machinery is standard~\cite{nocedal2006}. An
 implementation of the method, of the Goldfarb--Idnani core, and of the conic
 front end is available at \url{https://github.com/tschm/cvxball}.
 
