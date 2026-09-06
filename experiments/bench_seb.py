@@ -72,6 +72,16 @@ SWEEP_POINTS = 1000
 # pivoting paper. Welzl and Clarabel are absent because neither finishes here.
 HIGH_DIMENSIONS = [1000, 2000, 4000, 8000, 16000]
 HIGH_POINTS = 1000
+# Where the cone program is still solvable, so that "Clarabel does not reach the
+# regime above" is a measurement rather than an assertion. It stops here because
+# the time, not the memory, runs out: the trend over these six rows is what says
+# what d = 16000 would cost.
+REFERENCE_DIMENSIONS = [62, 125, 250, 500, 1000]
+REFERENCE_POINTS = 1000
+# Clarabel is timed once past this dimension. Its runs there are minutes long, so
+# run-to-run spread is a fraction of a percent of a gap reported as a factor of
+# 10**3 -- and three repeats of the d = 2000 row alone would cost half an hour.
+REFERENCE_SINGLE_RUN_ABOVE = 125
 REPEATS = 3
 SEEDS = 15
 
@@ -208,6 +218,41 @@ def active_set_steps(points: np.ndarray) -> tuple[int, int]:
     return len(lines), int(lines[-1].split("support=")[1].split()[0])
 
 
+def reference_table() -> None:
+    """Print all three methods over `REFERENCE_DIMENSIONS`, where Clarabel still finishes.
+
+    This is the table that says what the cone program costs. It matters because
+    the claim it supports -- that the second-order-cone route does not reach the
+    dimensions `high_dimension_table` reports -- is otherwise an assertion about
+    an ``n(d + 1)``-row system nobody has actually handed to a solver.
+
+    Two things are worth reading off it. The gap is not a constant: Clarabel is a
+    couple of hundred times slower at ``d = 62`` and a couple of thousand times
+    slower by ``d = 1000``, so extrapolating the last row is what rules out the
+    grid above rather than the row count itself. And the errors differ in kind --
+    an interior-point method stops at a tolerance, so its ball is right to a few
+    parts in ``10**9``, where both active-set methods terminate at a vertex and
+    are exact to the last bit.
+    """
+    rng = np.random.default_rng(0)
+    errors = f"{'err_as':>10} {'err_fgk':>10} {'err_cl':>10}"
+    print(f"\n{'d':>6} | {errors} | {'t_as':>8} {'t_fgk':>8} {'t_cl':>10} {'cl/as':>8}")
+    for d in REFERENCE_DIMENSIONS:
+        points = rng.normal(size=(REFERENCE_POINTS, d))
+        t_as, r_as, c_as = timed(min_circle_active_set, points)
+        t_fg, r_fg, c_fg = timed(min_circle_fgk, points)
+        repeats = REPEATS if d <= REFERENCE_SINGLE_RUN_ABOVE else 1
+        t_cl, r_cl, c_cl = timed(min_circle_clarabel, points, repeats=repeats)
+        print(
+            f"{d:>6} | "
+            f"{enclosure_error(points, r_as, c_as):>10.2e} "
+            f"{enclosure_error(points, r_fg, c_fg):>10.2e} "
+            f"{enclosure_error(points, r_cl, c_cl):>10.2e} | "
+            f"{t_as:>8.3f} {t_fg:>8.3f} {t_cl:>10.3f} {t_cl / t_as:>8.0f}",
+            flush=True,
+        )
+
+
 def high_dimension_table() -> None:
     """Print the active-set method against the pivoting one over `HIGH_DIMENSIONS`.
 
@@ -245,4 +290,5 @@ def high_dimension_table() -> None:
 if __name__ == "__main__":
     main_table()
     dimension_sweep()
+    reference_table()
     high_dimension_table()
