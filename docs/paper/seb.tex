@@ -43,8 +43,8 @@ the primal deflation of Fischer, G\"artner and Kutz~\cite{fischer2003}, which is
 feasible at every step. Neither method is ours. They keep the same
 support set, solve the same subproblem, and can repair the same $QR$
 factorisation of the same edge matrix in $O(dr)$. We give the conditions under
-which either survives floating point, and then hold that linear algebra fixed to
-measure what actually separates them.
+which either survives floating point, measure what each is worth, and then hold
+that linear algebra fixed to see what separates the two methods.
 
 The conditions are sharper than tolerance hygiene. Each method carries exactly
 one tolerance with units of length and one with none, and the two must be sized
@@ -452,6 +452,61 @@ rounds, and the exactness Table~\ref{tab:highd} reports is lost with it. The
 measurements below rescale in the dual method and not in the pivoting one, which
 is a property of the two implementations rather than of the two methods --- the
 walk of~\eqref{eq:fgk-step} would survive the same treatment unchanged.
+
+Table~\ref{tab:invariance} is the same method with each of those guards removed
+in turn. Only the fully guarded row is exactly zero everywhere exactness is
+available. In the two offset columns it sits instead at
+$\varepsilon\,\lVert\bar p\rVert/R$, the floor imposed by storing the answer in
+coordinates of that magnitude at all --- a property of the representation, not of
+the search, and the measurement itself has to be recentred and rescaled before
+squaring or it reports that floor as a failure of the method.
+
+\begin{table}[h]
+\centering
+\small
+\setlength{\tabcolsep}{4.5pt}
+\begin{tabular}{l rrr rrr}
+  \toprule
+  & \multicolumn{3}{c}{extent $1$, offset} & \multicolumn{3}{c}{at the origin, extent} \\
+  \cmidrule(lr){2-4}\cmidrule(lr){5-7}
+  guards in place & $0$ & $10^{6}$ & $10^{9}$
+                  & $10^{-20}$ & $10^{-160}$ & $10^{160}$ \\
+  \midrule
+  all                           & $0$ & $5.4\cdot10^{-11}$ & $6.5\cdot10^{-8}$ & $0$ & $0$ & $0$ \\
+  expanded distances            & $2.2\cdot10^{-16}$ & $5.4\cdot10^{-11}$ & $6.5\cdot10^{-8}$ & $2.2\cdot10^{-16}$ & $2.2\cdot10^{-16}$ & $2.2\cdot10^{-16}$ \\
+  no recentring                 & $2.2\cdot10^{-16}$ & $5.3\cdot10^{-2}$ & $R=0$ & $2.2\cdot10^{-16}$ & $2.2\cdot10^{-16}$ & $2.2\cdot10^{-16}$ \\
+  no rescaling                  & $0$ & $5.4\cdot10^{-11}$ & $6.5\cdot10^{-8}$ & $0$ & non-finite & $R=0$ \\
+  \quad and unit tolerances     & $0$ & $5.4\cdot10^{-11}$ & $6.5\cdot10^{-8}$ & $R=0$ & $R=0$ & stalls \\
+  rescale by the extent         & $2.2\cdot10^{-16}$ & $5.4\cdot10^{-11}$ & $6.5\cdot10^{-8}$ & $2.2\cdot10^{-16}$ & $2.2\cdot10^{-16}$ & $2.2\cdot10^{-16}$ \\
+  none                          & $2.2\cdot10^{-16}$ & $1.5\cdot10^{-3}$ & stalls & $R=0$ & $R=0$ & stalls \\
+  \bottomrule
+\end{tabular}
+\caption{Relative enclosure error $\max_i\norm{p_i-x}/R-1$ for the method of
+Section~\ref{sec:method} with individual guards removed: $n=10^3$ standard normal
+points in $d=10$, scaled and shifted per column, worst of $15$ seeds. \emph{$R=0$}
+means the method returned a radius of zero and raised nothing; \emph{non-finite}
+that the weights left the reals; \emph{stalls} that no support point blocked the
+step. Of $48$ cells, $42$ fall in the same category on every seed --- the six that
+do not are all failure rows differing in \emph{how} they fail.}
+\label{tab:invariance}
+\end{table}
+
+The two ends behave differently, and the dangerous one is the top. Without
+rescaling, a cloud of extent $10^{-160}$ drives the weights out of the reals and
+the method raises; at $10^{160}$ it returns $R=0$ and raises nothing, which is the
+failure a caller cannot detect. Tolerances tied to magnitude one bind far earlier
+--- already at extent $10^{-20}$, where the stopping test accepts the first
+iterate and reports $R=0$. And rescaling by the extent rather than by a power of
+two costs exactly what Section~\ref{sec:invariance} claims it costs: one ulp,
+everywhere the power of two is exact.
+
+One row qualifies the section rather than confirming it. Expanding
+$\norm{p-x}^2$ instead of differencing costs nothing measurable \emph{once the
+cloud is recentred}, because recentring already leaves $\norm{x}$ of the order of
+$R$ and there is then nothing to cancel. The two halves of origin invariance are
+not independent: recentring is the load-bearing one, and differencing is what
+makes its absence merely bad rather than catastrophic. Differencing is free, so
+both are kept, but only the first is doing work on these inputs.
 
 \section{Cost, and what each method certifies}
 \label{sec:cost}
