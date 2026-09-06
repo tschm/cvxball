@@ -27,7 +27,7 @@ answer the same question from opposite sides and agree on the answer:
   pivot counts beside the ball.
 
 The active-set method is the default because it is the faster of the two on every
-cloud measured (Table 3 of the note: within a factor of 1.1 to 1.6 from `d = 1000`
+cloud measured (Table 2 of the note: within a factor of 1.1 to 1.6 from `d = 1000`
 to `d = 16000`) and because its weights are a certificate the caller can check in
 one pass. Both are public: `from cvxball import min_circle_active_set,
 min_circle_fgk, ball_with_counts`. Both are held to the same expectations in
@@ -63,7 +63,10 @@ compared against, and `tests/test_solver.py` imports the Clarabel one so CI keep
 checking that three independent implementations agree — that import is why a root
 `conftest.py` exists (`pytest.ini` is template-owned and carries no `pythonpath`).
 Welzl's method is *not* under test; it is reached only by the benchmark.
-`experiments/bench_seb.py` produces the tables in `docs/paper/seb.tex`.
+`experiments/bench_seb.py` produces the note's two tables — `reference_table` for
+the cone program's cost, `high_dimension_table` for the two shipped solvers;
+`experiments/invariance.py` and `experiments/asymptotic.py` are measurements the
+note no longer prints.
 
 Both solvers are written to be scale- and origin-invariant, and for the
 active-set code the two properties are load-bearing and easy to break:
@@ -102,7 +105,10 @@ Rhiza (then re-sync).
 - `experiments/` — reference implementations and benchmarks. Outside `packages`
   and `testpaths`, so the coverage, docstring and type gates do not reach it;
   `ruff` and `ruff-format` do.
-- `docs/paper/seb.tex` — the nine-page note, with the benchmark tables. It sits
+- `docs/paper/seb.tex` — the five-page companion note: the two methods in a
+  common notation, the factorisation they share, what the Clarabel cone program
+  costs beside them, and the benchmark table that compares the two with that
+  linear algebra held fixed. It sits
   in the docs tree because that is where rhiza's `paper` task looks: `make paper`
   compiles the root document of `docs/paper/` with tectonic (rerunning until
   cross-references converge) and leaves the PDF beside the source, which is what
