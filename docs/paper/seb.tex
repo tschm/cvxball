@@ -36,14 +36,18 @@ Two active-set methods solve the smallest enclosing ball problem from opposite
 sides: the dual ascent over the unit simplex of Dearing and
 Zeck~\cite{dearing2009}, whose ball encloses nothing until it terminates, and the
 primal deflation of Fischer, G\"artner and Kutz~\cite{fischer2003}, which is
-feasible at every step. Neither method is ours; both have been implemented
-before. This note records what the two share --- the same support set, the same
-subproblem, the same $QR$ factorisation of the same edge matrix, repaired in
-$O(dr)$ --- and then holds that linear algebra fixed to see what separates them.
-On Gaussian clouds to $d=1.6\cdot10^4$ they agree on the ball and on its support
-on every row; the primal method takes $1.2$ to $2.1$ times as many steps, the
-price of never taking a full step, which the wall clock damps to a factor of
-$1.1$ to $1.6$. Both ship in \texttt{cvxball}.
+feasible at every step. This note compares the two with their linear algebra held
+fixed. They keep the same support set, solve the same subproblem, and can repair
+the same $QR$ factorisation of the same edge matrix in $O(dr)$; handing both that
+one data structure removes the usual confound, so what separates them is a
+property of the two searches rather than of two implementations. On Gaussian
+clouds to $d=1.6\cdot10^4$ they agree on the ball and on its support on every row,
+and the primal method takes $1.2$ to $2.1$ times as many steps --- the price of
+never taking a full step --- which the wall clock damps to a factor of $1.1$ to
+$1.6$. The cone program both replace, handed to an interior-point solver, is two
+to three orders of magnitude slower where it runs at all, and stops at a tolerance
+where both of these terminate exactly. Neither method is ours; both ship in
+\texttt{cvxball}.
 \end{abstract}
 
 \section{Introduction}
@@ -73,13 +77,14 @@ and Alizadeh brought its iteration from $O(d^3)$ to $O(d^2)$ by updating a
 factorisation rather than rebuilding it~\cite{cavaleiro2018} and then extended the
 method to balls~\cite{cavaleiro2021}.
 
-This note is a companion to the software rather than a new algorithm. It states
-the two methods in a common notation (Sections~\ref{sec:dual}--\ref{sec:fgk}),
-shows that they can share one data structure (Section~\ref{sec:qr}), and reports
-what separates them once that data structure is held fixed
-(Section~\ref{sec:numerics}). Handing both the same linear algebra removes the
-usual confound: what is left is a property of the two searches rather than of two
-implementations.
+This note states the two methods in a common notation
+(Sections~\ref{sec:dual}--\ref{sec:fgk}), shows that they can share one data
+structure (Section~\ref{sec:qr}), and reports what separates them once that data
+structure is held fixed (Section~\ref{sec:numerics}). Handing both the same linear
+algebra removes the usual confound: what is left is a property of the two searches
+rather than of two implementations. Neither method is new and none is claimed
+here; what this note adds is the controlled comparison, and an implementation of
+both that makes it reproducible.
 
 \section{The problem and its two sides}
 \label{sec:dual}
