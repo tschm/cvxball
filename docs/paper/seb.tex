@@ -37,9 +37,10 @@ invariance conditions and a controlled comparison of primal and dual}
 \begin{abstract}
 \noindent
 Two active-set methods solve the smallest enclosing ball problem from opposite
-sides: a dual ascent over the unit simplex, which holds no enclosing ball until
-it terminates, and the primal deflation of Fischer, G\"artner and
-Kutz~\cite{fischer2003}, which is feasible at every step. They keep the same
+sides: the dual ascent over the unit simplex of Dearing and
+Zeck~\cite{dearing2009}, which holds no enclosing ball until it terminates, and
+the primal deflation of Fischer, G\"artner and Kutz~\cite{fischer2003}, which is
+feasible at every step. Neither method is ours. They keep the same
 support set, solve the same subproblem, and can repair the same $QR$
 factorisation of the same edge matrix in $O(dr)$. We give the conditions under
 which either survives floating point, and then hold that linear algebra fixed to
@@ -92,6 +93,15 @@ Kutz~\cite{fischer2003} left the recursion behind for a pivoting method that
 deflates an enclosing ball, carrying a dynamic $QR$ of the support's edge matrix
 and reporting $d$ in the thousands --- a finite algorithm of that second kind
 going back to Elzinga and Hearn~\cite{elzinga1972}.
+
+A second line runs beside it in the optimization literature and reaches the same
+object from the dual. Dearing and Zeck~\cite{dearing2009} gave a dual algorithm
+for the ball of points, maintaining a support set and raising the radius to $R$
+from below; Cavaleiro and Alizadeh~\cite{cavaleiro2018} brought its iteration from
+$O(d^3)$ to $O(d^2)$ by updating a factorisation of that support rather than
+rebuilding it, and then extended the method to balls~\cite{cavaleiro2021},
+treating the affinely dependent case explicitly and reporting $d=5\cdot10^3$ at
+$n=10^5$. The two lines have largely stayed apart.
 
 What returns the problem to an optimizer's desk is that its dual is a concave
 quadratic over the unit simplex: the active set is the set of points on the
@@ -199,6 +209,19 @@ the best one.
 
 \section{The dual active-set method}
 \label{sec:method}
+
+This method is not new and is not claimed here. It is the dual algorithm of
+Dearing and Zeck~\cite{dearing2009} as sharpened by Cavaleiro and
+Alizadeh~\cite{cavaleiro2018,cavaleiro2021}, restated because
+Section~\ref{sec:fgk} is to be compared against it and the correspondence must be
+exact, and because Section~\ref{sec:invariance} concerns tolerances that mean
+nothing until the steps they guard are on the page. Two details below depart from
+that line of work, and are given as differences rather than as claims: the step
+rule here is a full step to the circumcentre of the current face followed by a
+ratio test~\eqref{eq:ratio}, where~\cite{cavaleiro2021} performs an exact curve
+search that keeps dual feasibility throughout; and an affinely dependent support
+is resolved by a descent direction in the null space rather than by dropping a
+point before the search begins.
 
 Maintain a working set $F$ and weights $u>0$ on it supported there and summing to
 one:
@@ -364,7 +387,8 @@ the third supplies the right-hand side. The pivoting method reads the same $R$ f
 its projection and its coefficients.
 
 Rebuilding that factorisation costs $O(dr^2)$ and repairing it costs $O(dr)$, and
-the repair is section~4 of~\cite{fischer2003}. Three updates cover every move
+the repair is section~4 of~\cite{fischer2003}, and the same move on the dual side
+is~\cite{cavaleiro2018}. Three updates cover every move
 either method makes: a point joining the support appends a column, a point other
 than $q_0$ leaving deletes one, and $q_0$ leaving has no column of its own --- every
 column being measured \emph{from} it --- so $q_1$ is promoted by a deletion
@@ -550,10 +574,14 @@ Wolfe~\cite{wolfe1976}, its working set his corral and~\eqref{eq:sub} his affine
 minimiser; the linear term $\sum_iu_i\norm{p_i}^2$ is what makes the subproblem a
 circumcentre rather than a projection.
 
-Of the two exact lines of work Section~\ref{sec:intro} sketches, the method of
+Of the two lines of work Section~\ref{sec:intro} sketches, the method of
 Section~\ref{sec:fgk} is the geometric one and that of Section~\ref{sec:method}
-the quadratic-programming one, after G\"artner and
-Sch\"onherr~\cite{gaertner2000}, whose reservation that a QP formulation needed
+the quadratic-programming one, running from G\"artner and
+Sch\"onherr~\cite{gaertner2000} through Dearing and Zeck~\cite{dearing2009} to
+Cavaleiro and Alizadeh~\cite{cavaleiro2018,cavaleiro2021}. The last of these
+reports $d=5\cdot10^3$ at $n=10^5$ in MATLAB, against $d=1.6\cdot10^4$ at
+$n=10^3$ here; the two sweep different axes and are not directly comparable.
+G\"artner and Sch\"onherr's reservation that a QP formulation needed
 exact arithmetic past a few hundred dimensions Table~\ref{tab:highd} bears on
 without settling: in double precision the method returns a ball out to
 $d=1.6\cdot10^4$ whose enclosure error is a few ulp, on Gaussian clouds, which are
@@ -568,6 +596,15 @@ references.
 \footnotesize
 \setlength{\itemsep}{0pt}
 \setlength{\parskip}{0pt}
+\bibitem{cavaleiro2018} M.~Cavaleiro and F.~Alizadeh. A faster dual algorithm
+  for the Euclidean minimum covering ball problem. \emph{Annals of Operations
+  Research}, 2018. DOI 10.1007/s10479-018-3123-5.
+\bibitem{cavaleiro2021} M.~Cavaleiro and F.~Alizadeh. A dual simplex-type
+  algorithm for the smallest enclosing ball of balls. \emph{Computational
+  Optimization and Applications} 79(3):767--787, 2021.
+\bibitem{dearing2009} P.~M.~Dearing and C.~R.~Zeck. A dual algorithm for the
+  minimum covering ball problem in $\R^n$. \emph{Operations Research Letters}
+  37(3):171--175, 2009.
 \bibitem{elzinga1972} J.~Elzinga and D.~W.~Hearn. Geometrical solutions for some
   minimax location problems. \emph{Transportation Science} 6(4):379--394, 1972.
 \bibitem{fischer2003} K.~Fischer, B.~G\"artner and M.~Kutz. Fast
