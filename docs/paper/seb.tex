@@ -25,7 +25,8 @@
 \newcommand{\T}{^{\mathsf{T}}}
 
 \setlength{\parskip}{0pt}
-\title{\vspace{-1.2cm}\bfseries Smallest enclosing balls by active-set methods, primal and dual}
+\title{\vspace{-1.2cm}\bfseries Active-set methods for smallest enclosing balls:\\
+invariance conditions and a controlled comparison of primal and dual}
 \author{Thomas Schmelzer}
 \date{\today}
 
@@ -35,18 +36,33 @@
 
 \begin{abstract}
 \noindent
-We record two active-set methods for the smallest enclosing ball problem, one on
-each side of it, and the invariance properties an implementation of either must
-preserve. The first ascends the dual --- a quadratic program over the unit
-simplex --- and holds no enclosing ball until it terminates; the second, of
-Fischer, G\"artner and Kutz, deflates an enclosing ball and is feasible
-throughout. Both terminate at an exact basis rather than at an interior-point
-tolerance, both cost one solve or projection of order at most $d$ per iteration
-beside one sweep of the cloud, and both repair the same factorisation of the same
-support. What separates them is what they can hand back: dual weights that
-certify optimality in one pass, against a ball that is already valid at every
-step. On Gaussian clouds to $d=1.6\cdot10^4$ they agree on the support set and
-differ by a small constant factor in time.
+Two active-set methods solve the smallest enclosing ball problem from opposite
+sides: the dual ascent over the unit simplex of Dearing and
+Zeck~\cite{dearing2009}, which holds no enclosing ball until it terminates, and
+the primal deflation of Fischer, G\"artner and Kutz~\cite{fischer2003}, which is
+feasible at every step. Neither method is ours. They keep the same
+support set, solve the same subproblem, and can repair the same $QR$
+factorisation of the same edge matrix in $O(dr)$. We give the conditions under
+which either survives floating point, measure what each is worth, and then hold
+that linear algebra fixed to see what separates the two methods.
+
+The conditions are sharper than tolerance hygiene. Each method carries exactly
+one tolerance with units of length and one with none, and the two must be sized
+differently; the affine-dependence test must run on the edge matrix rather than
+on the system bordered by a row of ones, which would call any cloud of small
+extent degenerate; and since a \emph{squared} double reaches only $10^{154}$,
+the centred cloud must be rescaled by an exact power of two --- any other factor
+rounds, and the exactness goes with it.
+
+With those in place both methods return a ball whose enclosure error is a few
+ulp on Gaussian clouds to $d=1.6\cdot10^4$, eight times the largest dimension
+previously reported for the pivoting method, agreeing on the support set on
+every row; the support grows as $\sqrt d$ rather than as $d$, and time with it
+as $d^{3/2}$. What remains between the two is a factor of $1.2$ to $2.1$ in
+steps --- the price of the primal method never taking a full step --- which the
+wall clock damps to between $1.1$ and $1.6$, and a difference in what each can
+hand back: dual weights that certify optimality in one pass, against a ball that
+is already valid if the iteration is cut short.
 \end{abstract}
 
 \section{Introduction}
@@ -61,50 +77,59 @@ facility is placed so that the farthest customer travels as little as possible.
 It is the primitive under bounding-sphere hierarchies in graphics and collision
 detection. As the minimum enclosing ball of a set of feature vectors it is the
 core-set problem behind kernel machines. And it is a fixture of solver
-documentation: Hexaly ships it as a modelling template, in which the centre's
-coordinates are the decision variables and the radius is an intermediate
-expression built from \texttt{sqrt}, \texttt{pow} and \texttt{max}, minimised
-directly~\cite{hexaly}; CGAL ships it as \texttt{Min\_sphere\_d}, which is
-Welzl's recursion with the move-to-front heuristic for small inputs and
-G\"artner's method for large ones.
+documentation: Hexaly ships it as a modelling template~\cite{hexaly}, CGAL as
+\texttt{Min\_sphere\_d} --- Welzl's recursion for small inputs, G\"artner's
+method for large ones.
 
-The algorithmic history is largely a computational-geometry one, and largely the
-work of two people. Welzl's randomised incremental method~\cite{welzl1991} solves
-it in expected $O(n)$ time for fixed $d$, recursing over subsets with a few points
-forced onto the boundary; the constant grows superexponentially in $d$, and much
-of what followed is a response to that. G\"artner's robust
-implementation~\cite{gaertner1999} addressed the fragility of the recursion's
-predicates in floating point, and is the other half of what CGAL runs.
-G\"artner and
-Sch\"onherr~\cite{gaertner2000} recast the problem as a quadratic program and
-solved it exactly, reserving judgment past a few hundred dimensions. Fischer,
-G\"artner and Kutz~\cite{fischer2003} then left the recursion behind altogether
-for a pivoting method that deflates an enclosing ball, carrying a dynamic $QR$ of
-the support's edge matrix and reporting $d$ in the thousands. Elzinga and
-Hearn~\cite{elzinga1972} had given a finite algorithm of that second kind two
-decades before Welzl.
+The algorithmic history is largely a computational-geometry one. Welzl's
+randomised incremental method~\cite{welzl1991} solves it in expected $O(n)$ time
+for fixed $d$ by recursing over subsets with a few points forced onto the
+boundary, with a constant that grows superexponentially in $d$; much of what
+followed is a response to that. G\"artner~\cite{gaertner1999} made the recursion's
+predicates robust in floating point, G\"artner and Sch\"onherr~\cite{gaertner2000}
+recast the problem as a quadratic program and solved it exactly, reserving
+judgment past a few hundred dimensions, and Fischer, G\"artner and
+Kutz~\cite{fischer2003} left the recursion behind for a pivoting method that
+deflates an enclosing ball, carrying a dynamic $QR$ of the support's edge matrix
+and reporting $d$ in the thousands --- a finite algorithm of that second kind
+going back to Elzinga and Hearn~\cite{elzinga1972}.
 
-What returned me to the problem was a pair of recent experiments with active-set
-methods elsewhere: the Goldfarb--Idnani dual method for strictly convex quadratic
-programs, whose invariants hold under bound constraints and quietly stop holding
-under general ones~\cite{schmelzer2026gi}, and a conjugate-gradient solver wrapped
-in a primal--dual active-set loop for non-negativity
-constraints~\cite{schmelzer2026nncg}. The smallest enclosing ball is that same
-machinery on the simplest feasible set there is. Its dual is a concave quadratic
-over the unit simplex; the active set is the set of points on the boundary
-sphere; and the certificate is geometric rather than algebraic --- the points
-carrying weight are exactly the points at distance $R$, which a caller can check
-in one pass.
+A second line runs beside it in the optimization literature and reaches the same
+object from the dual. Dearing and Zeck~\cite{dearing2009} gave a dual algorithm
+for the ball of points, maintaining a support set and raising the radius to $R$
+from below; Cavaleiro and Alizadeh~\cite{cavaleiro2018} brought its iteration from
+$O(d^3)$ to $O(d^2)$ by updating a factorisation of that support rather than
+rebuilding it, and then extended the method to balls~\cite{cavaleiro2021},
+treating the affinely dependent case explicitly and reporting $d=5\cdot10^3$ at
+$n=10^5$. The two lines have largely stayed apart.
 
-What follows records two methods on that structure, at equal length and with
-equal claim: the dual ascent of Section~\ref{sec:method}, and the primal
-deflation of Section~\ref{sec:fgk}, which is the pivoting method of Fischer,
-G\"artner and Kutz~\cite{fischer2003}. They keep the same support set, solve the same subproblem
-and repair the same factorisation (Section~\ref{sec:qr}); they need the same care
-with tolerances (Section~\ref{sec:invariance}); and on every input measured in
-Section~\ref{sec:numerics} they agree on the ball, on its support, and to within a
-small constant factor on time. Where they part is in what they hold while they
-run, and so in what they can promise if interrupted.
+What returns the problem to an optimizer's desk is that its dual is a concave
+quadratic over the unit simplex: the active set is the set of points on the
+boundary sphere, and the certificate is geometric rather than algebraic --- the
+points carrying weight are exactly the points at distance $R$, which a caller can
+check in one pass. Active-set machinery is less comfortable on feasible sets with
+more structure~\cite{schmelzer2026gi,schmelzer2026nncg}; here there is none to
+speak of.
+
+Two things follow. The first is a set of conditions under which either method
+survives floating point, in Section~\ref{sec:invariance}: which of each method's
+two tolerances carries units of length and which carries none, why the
+affine-dependence test must run on the edge matrix rather than on the system
+bordered by a row of ones, and why the rescaling that keeps a squared double
+inside the exponent range has to be by an exact power of two. They are stated for
+both methods because both need them, and they are what lets the measurements
+below reach the dimensions they do.
+
+The second is a comparison with the linear algebra held fixed. The dual ascent of
+Section~\ref{sec:method} and the primal deflation of Section~\ref{sec:fgk} ---
+the pivoting method of Fischer, G\"artner and Kutz~\cite{fischer2003} --- keep the
+same support set, solve the same subproblem and repair the same factorisation
+(Section~\ref{sec:qr}). Handing both the same data structure removes the usual
+confound, and what is left is a property of the two searches rather than of two
+implementations: on every input measured in Section~\ref{sec:numerics} they agree
+on the ball and on its support, and separate by about a factor of two in steps and
+by less in time. Where they part is in what they hold while they run, and so in
+what they can promise if interrupted.
 
 \section{The problem and its two sides}
 \label{sec:dual}
@@ -133,34 +158,22 @@ $y\in\R^d$ and $u\in\Delta_n$:
     \;=\; \sum_i u_i\norm{p_i}^2-2\,x(u)\T y+\norm{y}^2
     \;=\; \varphi(u)+\norm{x(u)-y}^2 .
 \end{equation}
-Both steps are mechanical. The first expands the square and collects terms,
-using $\sum_iu_ip_i=x(u)$ on the cross term and $\mathbf{1}\T u=1$ on
-$\norm{y}^2$; the second adds and subtracts $\norm{x(u)}^2$, which
-by~\eqref{eq:phi} leaves $\varphi(u)$ beside a completed square. What makes it
-an equality rather than a bound is that no term has been discarded: the weights
-enter only through $x(u)$ and through $\sum_iu_i\norm{p_i}^2$, and $\varphi$ is
-defined as exactly the difference of those two. So this is the parallel-axis
-identity of mechanics, or the bias--variance decomposition: measuring from
-anywhere other than the weighted mean costs precisely $\norm{x(u)-y}^2$,
-whatever the weights, and $\varphi(u)$ is what is left when $y$ is the mean.
+Both steps are mechanical: expand and collect, using $\sum_iu_ip_i=x(u)$ on the
+cross term and $\mathbf{1}\T u=1$ on $\norm{y}^2$, then add and subtract
+$\norm{x(u)}^2$. It is the parallel-axis identity --- measuring from anywhere
+other than the weighted mean costs precisely $\norm{x(u)-y}^2$, whatever the
+weights, and $\varphi(u)$ is what is left when $y$ is the mean.
 
 \begin{proposition}
   \label{prop:duality}
   $R^2=\max_{u\in\Delta_n}\varphi(u)$, and $x^\star=x(w)$ for any maximiser $w$.
 \end{proposition}
 
-\begin{proof}
-  If $B(y,r)\supseteq S$ then the left side of~\eqref{eq:id} is at most $r^2$, so
-  $\varphi(u)\le r^2$ for every $u$; taking the optimum gives
-  $\max\varphi\le R^2$. Conversely let $T=\{p_i:\norm{p_i-x^\star}=R\}$. If
-  $x^\star\notin\conv T$, separate: there is $v$ with $v\T(p-x^\star)>0$ on $T$,
-  and $\norm{p-(x^\star+tv)}^2=R^2-2tv\T(p-x^\star)+t^2\norm{v}^2<R^2$ for small
-  $t>0$, while the finitely many points off $T$ stay strictly inside --- so the
-  radius decreases, a contradiction. Hence $x^\star=\sum_i w_ip_i$ for some
-  $w\in\Delta_n$ supported on $T$, and $y=x^\star$ in~\eqref{eq:id} gives
-  $\varphi(w)=\sum_iw_i\norm{p_i-x^\star}^2=R^2$. The same substitution forces
-  $\norm{x(w)-x^\star}^2\le0$ for any maximiser.
-\end{proof}
+\noindent
+Both directions are short: $\varphi\le R^2$ is~\eqref{eq:id} applied to any
+enclosing ball, and equality follows by separating $x^\star$ from $\conv T$,
+$T=\{p_i:\norm{p_i-x^\star}=R\}$, if the two were disjoint. See
+also~\cite{gaertner2000}.
 
 Since $\partial\varphi/\partial u_i=\norm{p_i-x(u)}^2-\norm{x(u)}^2$, the
 first-order conditions for $\max_{\Delta_n}\varphi$ read, after cancelling the
@@ -175,29 +188,40 @@ most $d+1$, so~\eqref{eq:primal} is determined by at most $d+1$ of the $n$ point
 and the problem is combinatorial in the choice of that subset.
 
 Read forwards,~\eqref{eq:kkt} is a search for weights: keep a set of points on the
-sphere, adjust the weights on it, and stop when no point lies outside. Read
-backwards it is a search for balls: keep a ball that already contains $S$ with a
-set $T$ on its boundary, and shrink it until its centre falls inside $\conv T$.
-The second reading rests on a fact due to Seidel, recorded
-in~\cite{gaertner2000} and taken as Lemma~1 by Fischer, G\"artner and
-Kutz~\cite{fischer2003}: if $T$ lies on the boundary of a ball $B$ with centre
-$c$, then $B$ is the smallest ball enclosing $T$ if and only if $c\in\conv T$.
-That is a stopping certificate for $S$ as well. If in addition $S\subseteq B$
-then $B\supseteq\mathrm{seb}(S)$, while $T\subseteq S$ gives
-$\mathrm{seb}(T)\subseteq\mathrm{seb}(S)$; with $B=\mathrm{seb}(T)$ the two
-inclusions close, and $B=\mathrm{seb}(S)$ by uniqueness. So a ball containing the
-cloud, carrying $T$ on its boundary, and centred inside $\conv T$ is \emph{the}
-answer --- and $\conv T$ is the only thing left to check. Sections~\ref{sec:method} and~\ref{sec:fgk} are those two readings made into
-methods --- the second being theirs. They keep the same
-kind of state --- a subset of $S$ that will end up on the boundary, and a point in
-its affine hull --- and differ in which feasibility they refuse to give up. The
-first stays dual feasible, so by Proposition~\ref{prop:duality} its radius rises
-to $R$ from below and its ball encloses nothing until the last iteration; the
-second stays primal feasible, so its radius falls to $R$ from above and every
-iterate is an answer, merely not yet the best one.
+sphere, adjust the weights, stop when no point lies outside. Read backwards it is
+a search for balls: keep a ball containing $S$ with a set $T$ on its boundary, and
+shrink it until its centre falls inside $\conv T$. The second rests on a fact due
+to Seidel, recorded in~\cite{gaertner2000} and Lemma~1 of~\cite{fischer2003}: if
+$T$ lies on the boundary of a ball $B$ centred at $c$, then $B$ is the smallest
+ball enclosing $T$ if and only if $c\in\conv T$.
+With $S\subseteq B$ and $T\subseteq S$ the inclusions
+$\mathrm{seb}(T)\subseteq\mathrm{seb}(S)\subseteq B$ close, so a ball containing
+the cloud, carrying $T$ on its boundary and centred inside $\conv T$ is \emph{the}
+answer --- and $\conv T$ is the only thing left to check.
+Sections~\ref{sec:method} and~\ref{sec:fgk} are those two readings made into
+methods. They keep the same kind of state --- a subset of $S$ that will end up on
+the boundary, and a point in its affine hull --- and differ in which feasibility
+they refuse to give up. The first stays dual feasible, so by
+Proposition~\ref{prop:duality} its radius rises to $R$ from below and its ball
+encloses nothing until the last iteration; the second stays primal feasible, so
+its radius falls to $R$ from above and every iterate is an answer, merely not yet
+the best one.
 
 \section{The dual active-set method}
 \label{sec:method}
+
+This method is not new and is not claimed here. It is the dual algorithm of
+Dearing and Zeck~\cite{dearing2009} as sharpened by Cavaleiro and
+Alizadeh~\cite{cavaleiro2018,cavaleiro2021}, restated because
+Section~\ref{sec:fgk} is to be compared against it and the correspondence must be
+exact, and because Section~\ref{sec:invariance} concerns tolerances that mean
+nothing until the steps they guard are on the page. Two details below depart from
+that line of work, and are given as differences rather than as claims: the step
+rule here is a full step to the circumcentre of the current face followed by a
+ratio test~\eqref{eq:ratio}, where~\cite{cavaleiro2021} performs an exact curve
+search that keeps dual feasibility throughout; and an affinely dependent support
+is resolved by a descent direction in the null space rather than by dropping a
+point before the search begins.
 
 Maintain a working set $F$ and weights $u>0$ on it supported there and summing to
 one:
@@ -249,26 +273,10 @@ $\norm{p_k-x}\le R$ then~\eqref{eq:kkt} holds and $(R,x,u)$ is optimal; otherwis
 append $k$ to $F$ with weight zero. By~\eqref{eq:gradient-note} below this is
 also the steepest-ascent choice among the fixed variables.
 
-\begin{center}
-\fbox{\begin{minipage}{0.95\textwidth}
-\small
-\textbf{Input} $p_1,\dots,p_n$. Recentre on $\bar p$. Set $F=\{k\}$, $k$ farthest
-from $p_1$; $u_k=1$.\\
-\textbf{Repeat:} if $F$ affinely dependent, take the null-space descent step and
-drop; else solve~\eqref{eq:sub}. If $\min w<0$, take the ratio step~\eqref{eq:ratio}
-and drop. Else set $u=w$, $x=x(u)$, $R=\max_{i\in F}\norm{p_i-x}$; if no point
-exceeds $R$, return $(R,\,x+\bar p,\,u)$; else drop zero weights and append
-$\argmax_i\norm{p_i-x}$ with weight $0$.
-\end{minipage}}
-\end{center}
-
 Each iteration either strictly increases $\varphi$ or strictly shrinks $F$, and
-there are finitely many working sets, so the method is finite; as with any
-active-set method a degenerate zero-length step requires an anti-cycling rule in
-exact arithmetic --- for this problem, a Bland-type order on the points, which
-Fischer, G\"artner and Kutz~\cite{fischer2003} prove terminating and then reject
-as too slow. In practice an iteration cap serves as a safety net. Note
-that
+there are finitely many working sets, so the method is finite; a degenerate
+zero-length step needs an anti-cycling rule in exact arithmetic, and in practice
+an iteration cap serves as the safety net. Note that
 \begin{equation}
   \label{eq:gradient-note}
   \partial\varphi/\partial u_k-\partial\varphi/\partial u_i
@@ -289,9 +297,7 @@ centre and a support set, subject to the invariant of their Fig.~2:
 \end{equation}
 where $B(c,T)$ is the ball about $c$ through the farthest point of $T$. By
 Seidel's lemma the pair is optimal as soon as $c\in\conv T$, and $c$ is then the
-circumcentre $\mathrm{cc}(T)$ without further argument --- it lies in $\aff(T)$
-and~\eqref{eq:fgk-invariant} has it equidistant from $T$. So the loop runs until
-$c$ reaches $\conv T$. Each iteration is a
+circumcentre $\mathrm{cc}(T)$ without further argument. Each iteration is a
 dropping phase, entered only once $c$ has landed in $\aff(T)$, followed by a
 walking phase.
 
@@ -327,28 +333,13 @@ by~\eqref{eq:fgk-invariant}. If $a=1$ the centre arrives at $\mathrm{cc}(T)$, la
 in $\aff(T)$, and the next iteration drops; otherwise the minimising point enters
 $T$ and the ball has shrunk.
 
-\paragraph{Pivot rules.} Ties are resolved two ways. \emph{Bland's rule}, adapted:
-fix an order on $S$, drop the negative-coefficient point of smallest rank, and
-admit the smallest-rank point among those that stop the walk together. Their Theorem~1
-proves termination with it, degeneracies included. The
-\emph{heuristic}, which is what their own code runs and what the tables below
-report, drops the \emph{most} negative coefficient and admits the tied point
-farthest from $\aff(T)$ --- the enlargement that leaves the support best
-conditioned. The paper records Bland's rule as correct but slow.
-
-\begin{center}
-\fbox{\begin{minipage}{0.95\textwidth}
-\small
-\textbf{Input} $p_1,\dots,p_n$. Recentre on $\bar p$. Set $c=p_1$ and
-$T=\{k\}$, $k$ farthest from $c$.\\
-\textbf{Repeat:} if $c\in\aff(T)$, take the affine coefficients of $c$; if none is
-negative, return $(\max_{q\in T}\norm{q-c},\,c+\bar p,\,T)$; else drop one
-negative-coefficient point by the pivot rule. Otherwise walk: form
-$e=\mathrm{cc}(T)-c$ as the projection of $c$ onto $\aff(T)$, take $a$
-from~\eqref{eq:fgk-step} over the points with positive denominator, set
-$c\leftarrow c+ae$, and if $a<1$ admit the minimising point into $T$.
-\end{minipage}}
-\end{center}
+\paragraph{Pivot rules.} Ties are resolved two ways. Bland's rule, adapted --- fix
+an order on $S$, take the smallest-rank candidate at both the drop and the
+admission --- is what their Theorem~1 proves terminating, degeneracies included,
+and is also recorded there as slow. The heuristic, which their own code runs and
+which the table below reports, drops the \emph{most} negative coefficient and
+admits the tied point farthest from $\aff(T)$, leaving the support best
+conditioned.
 
 The radius falls strictly on every walk and no configuration recurs, so the method
 is finite; under Bland's rule that is Theorem~1, and under the heuristic an
@@ -358,29 +349,22 @@ iteration cap serves as the safety net, exactly as in Section~\ref{sec:method}.
 invariant~\eqref{eq:fgk-invariant} requires $T$ affinely independent, and there is
 no fallback if it is not: with $\aff(T)$ of the wrong dimension the projection that
 defines the walk is meaningless. So the entering point must be certified off
-$\aff(T)$ before it is admitted, which is the paper's stability threshold and the
-one tolerance in the method carrying units of length (Section~\ref{sec:invariance}).
-Section~\ref{sec:method} makes the opposite choice: it \emph{permits} a dependent
-support and answers it with a descent direction in the null space, which costs it
-a rank test on every iteration and a factorisation that must survive a state an
-economic $QR$ cannot represent. Neither choice dominates --- one avoids the case,
-the other resolves it.
+$\aff(T)$ before it is admitted --- the paper's stability threshold, and the one
+tolerance in the method carrying units of length (Section~\ref{sec:invariance}).
+Section~\ref{sec:method} instead \emph{permits} a dependent support and answers it
+with a descent direction in the null space, paying a rank test every iteration and
+a factorisation that must survive a state an economic $QR$ cannot represent.
+Neither choice dominates --- one avoids the case, the other resolves it.
 
-\paragraph{How the two differ.} The support sets agree, the drop criteria agree ---
-a negative barycentric coordinate, in both --- and the mechanics agree nowhere
+\paragraph{How the two differ.} The support sets agree and the drop criteria agree
+--- a negative barycentric coordinate, in both --- and the mechanics agree nowhere
 else. Section~\ref{sec:method} takes the whole step to $\mathrm{cc}(F)$ and only
 then consults the data, admitting the farthest violator; this method never takes a
 full step while any point is still outside, truncating the walk at whichever point
 first touches the shrinking sphere, which is also the point that enters. A drop
 here is immediate and followed by a resumed walk; there it is a ratio test in
-weight space, moving every weight at once. And the certificate differs in kind:
-Section~\ref{sec:method} finishes with weights that verify~\eqref{eq:kkt} in one
-pass, while this method finishes with what it has held all along, a ball that
-contains $S$. One of the paper's observations deserves flagging in that light:
-almost-cospherical clouds are their \emph{hardest} inputs, points entering and
-leaving $T$ repeatedly, whereas cospherical inputs are where the dual method is at
-its most accurate. Both can hold at once --- theirs is a claim about iteration
-counts, the other about the final answer.
+weight space, moving every weight at once. That difference is what
+Section~\ref{sec:numerics} measures once the linear algebra is held fixed.
 
 \section{The support's factorisation}
 \label{sec:qr}
@@ -403,7 +387,8 @@ the third supplies the right-hand side. The pivoting method reads the same $R$ f
 its projection and its coefficients.
 
 Rebuilding that factorisation costs $O(dr^2)$ and repairing it costs $O(dr)$, and
-the repair is section~4 of~\cite{fischer2003}. Three updates cover every move
+the repair is section~4 of~\cite{fischer2003}, and the same move on the dual side
+is~\cite{cavaleiro2018}. Three updates cover every move
 either method makes: a point joining the support appends a column, a point other
 than $q_0$ leaving deletes one, and $q_0$ leaving has no column of its own --- every
 column being measured \emph{from} it --- so $q_1$ is promoted by a deletion
@@ -415,14 +400,13 @@ rather than of the data structure.
 Two things keep this from being a pure win. The dependent supports
 Section~\ref{sec:method} permits are exactly what an economic $QR$ cannot hold ---
 an update refuses a column already in the span --- so those faces are met by
-refactorising, which is affordable only because the stability of the surrounding
-tolerances keeps them rare. And the repair is not cheaper at every size: measured
-on the clouds of Section~\ref{sec:numerics} it is worth a factor of $3.5$ at
-$d=8\,000$, is at parity near $d=100$, and loses below that, where the per-update
-overhead exceeds the small dense solve it replaces. An implementation therefore
-dispatches on $d$ rather than committing to one route. That threshold is why
-Section~\ref{sec:numerics} can report $d=1.6\cdot10^4$ at all, and why the
-Gaussian clouds of Table~\ref{tab:sweep} are indifferent to it.
+refactorising, affordable only because the surrounding tolerances keep them rare.
+And the repair is not cheaper at every size: on the clouds of
+Section~\ref{sec:numerics} it is worth a factor of $3.5$ at $d=8\,000$, is at
+parity near $d=100$, and loses below that. An implementation therefore dispatches
+on $d$ rather than committing to one route. That threshold is why
+Section~\ref{sec:numerics} can report $d=1.6\cdot10^4$ at all, and why a cloud of
+low dimension is indifferent to it.
 
 \section{Invariance and floating point}
 \label{sec:invariance}
@@ -464,24 +448,76 @@ extent $10^{-160}$ --- ordinary coordinates --- therefore has a Gram matrix in t
 subnormals, and the solve~\eqref{eq:sub} overflows; at $10^{+160}$ the squares
 saturate and a method reports $R=0$ without raising. Rescaling the centred cloud
 to unit extent removes both, and the factor must be a power of two: any other
-rounds, and the exactness Table~\ref{tab:bench} reports is lost with it. The
+rounds, and the exactness Table~\ref{tab:highd} reports is lost with it. The
 measurements below rescale in the dual method and not in the pivoting one, which
 is a property of the two implementations rather than of the two methods --- the
 walk of~\eqref{eq:fgk-step} would survive the same treatment unchanged.
+
+Table~\ref{tab:invariance} is the same method with each of those guards removed
+in turn. Only the fully guarded row is exactly zero everywhere exactness is
+available. In the two offset columns it sits instead at
+$\varepsilon\,\lVert\bar p\rVert/R$, the floor imposed by storing the answer in
+coordinates of that magnitude at all --- a property of the representation, not of
+the search, and the measurement itself has to be recentred and rescaled before
+squaring or it reports that floor as a failure of the method.
+
+\begin{table}[h]
+\centering
+\small
+\setlength{\tabcolsep}{4.5pt}
+\begin{tabular}{l rrr rrr}
+  \toprule
+  & \multicolumn{3}{c}{extent $1$, offset} & \multicolumn{3}{c}{at the origin, extent} \\
+  \cmidrule(lr){2-4}\cmidrule(lr){5-7}
+  guards in place & $0$ & $10^{6}$ & $10^{9}$
+                  & $10^{-20}$ & $10^{-160}$ & $10^{160}$ \\
+  \midrule
+  all                           & $0$ & $5.4\cdot10^{-11}$ & $6.5\cdot10^{-8}$ & $0$ & $0$ & $0$ \\
+  expanded distances            & $2.2\cdot10^{-16}$ & $5.4\cdot10^{-11}$ & $6.5\cdot10^{-8}$ & $2.2\cdot10^{-16}$ & $2.2\cdot10^{-16}$ & $2.2\cdot10^{-16}$ \\
+  no recentring                 & $2.2\cdot10^{-16}$ & $5.3\cdot10^{-2}$ & $R=0$ & $2.2\cdot10^{-16}$ & $2.2\cdot10^{-16}$ & $2.2\cdot10^{-16}$ \\
+  no rescaling                  & $0$ & $5.4\cdot10^{-11}$ & $6.5\cdot10^{-8}$ & $0$ & non-finite & $R=0$ \\
+  \quad and unit tolerances     & $0$ & $5.4\cdot10^{-11}$ & $6.5\cdot10^{-8}$ & $R=0$ & $R=0$ & stalls \\
+  rescale by the extent         & $2.2\cdot10^{-16}$ & $5.4\cdot10^{-11}$ & $6.5\cdot10^{-8}$ & $2.2\cdot10^{-16}$ & $2.2\cdot10^{-16}$ & $2.2\cdot10^{-16}$ \\
+  none                          & $2.2\cdot10^{-16}$ & $1.5\cdot10^{-3}$ & stalls & $R=0$ & $R=0$ & stalls \\
+  \bottomrule
+\end{tabular}
+\caption{Relative enclosure error $\max_i\norm{p_i-x}/R-1$ for the method of
+Section~\ref{sec:method} with individual guards removed: $n=10^3$ standard normal
+points in $d=10$, scaled and shifted per column, worst of $15$ seeds. \emph{$R=0$}
+means the method returned a radius of zero and raised nothing; \emph{non-finite}
+that the weights left the reals; \emph{stalls} that no support point blocked the
+step. Of $48$ cells, $42$ fall in the same category on every seed --- the six that
+do not are all failure rows differing in \emph{how} they fail.}
+\label{tab:invariance}
+\end{table}
+
+The two ends behave differently, and the dangerous one is the top. Without
+rescaling, a cloud of extent $10^{-160}$ drives the weights out of the reals and
+the method raises; at $10^{160}$ it returns $R=0$ and raises nothing, which is the
+failure a caller cannot detect. Tolerances tied to magnitude one bind far earlier
+--- already at extent $10^{-20}$, where the stopping test accepts the first
+iterate and reports $R=0$. And rescaling by the extent rather than by a power of
+two costs exactly what Section~\ref{sec:invariance} claims it costs: one ulp,
+everywhere the power of two is exact.
+
+One row qualifies the section rather than confirming it. Expanding
+$\norm{p-x}^2$ instead of differencing costs nothing measurable \emph{once the
+cloud is recentred}, because recentring already leaves $\norm{x}$ of the order of
+$R$ and there is then nothing to cancel. The two halves of origin invariance are
+not independent: recentring is the load-bearing one, and differencing is what
+makes its absence merely bad rather than catastrophic. Differencing is free, so
+both are kept, but only the first is doing work on these inputs.
 
 \section{Cost, and what each method certifies}
 \label{sec:cost}
 
 Per iteration each method performs one $O(nd)$ sweep of the cloud --- squared
-distances to the current centre in Section~\ref{sec:method}, the stopping
+distances to the centre in Section~\ref{sec:method}, the stopping
 fractions~\eqref{eq:fgk-step} in Section~\ref{sec:fgk} --- and one solve or
-projection of order at most $d$, repaired rather than rebuilt above the dimension
-Section~\ref{sec:qr} names. Nothing of size $n$ is ever factorised by either. This
-is the structural difference from an interior-point method applied
-to~\eqref{eq:primal}, which factors an $n(d+1)$-row system at every step. Both
-also identify the support combinatorially and solve that face exactly, rather than
-approaching it from the interior and leaving the caller to decide which slacks of
-size $10^{-9}$ were meant to be zero.
+projection of order at most $d$. Nothing of size $n$ is ever factorised, which is
+the structural difference from an interior-point method applied
+to~\eqref{eq:primal}, and both solve the final face exactly rather than leaving
+the caller to decide which slacks of size $10^{-9}$ were meant to be zero.
 
 What they can hand back differs, and it is the practical reason to keep both.
 Section~\ref{sec:fgk} is primal feasible at every step: interrupt it at any
@@ -492,124 +528,29 @@ Proposition~\ref{prop:duality} its radius is a lower bound throughout, so its ba
 fails to contain the cloud until the final iteration. In exchange it finishes with
 the dual weights.
 
-The weights are the conic dual of~\eqref{eq:primal} after one rescaling: the
-block for point $i$ is
-\begin{equation}
-  \label{eq:conic-dual}
-  z_i=u_i\Bigl(1,\ -\frac{p_i-x}{R}\Bigr)\in\mathcal{Q}^{d+1},
-\end{equation}
-whose tail has norm $u_i\norm{p_i-x}/R$, equal to its head exactly on the
-support, and which pairs with the slack $s_i=(R,\,p_i-x)$ as
-$s_i\T z_i=(u_i/R)(R^2-\norm{p_i-x}^2)=0$ --- complementarity, each factor
-vanishing where the other does not. So a solver built on this method returns a
-standard-form primal--dual pair, and a caller can verify optimality
-from~\eqref{eq:kkt} at the cost of one pass over the data, without re-solving.
-
-\begin{remark}[Substitutability]
-  This is what makes the method usable behind a conic solver's interface rather
-  than only as a special-purpose routine. The accompanying implementation
-  dispatches on the cone list: zero and non-negative blocks go to a dense dual
-  active-set QP method~\cite{goldfarb1983}, and equally sized second-order blocks
-  matching the shape of~\eqref{eq:primal} go to Section~\ref{sec:method}, whose
-  weights are what the interface asks for; Section~\ref{sec:fgk} answers the same
-  program but would have to solve~\eqref{eq:sub} once at the end to produce them. A program
-  carrying the right cones but a different matrix is refused rather than
-  answered, which requires reconstructing the point cloud from $(A,b)$ and
-  rebuilding the program for comparison. An indefinite objective is likewise
-  refused rather than regularised into definiteness, since $P+\epsilon I$ answers
-  a different question.
-\end{remark}
+Those weights are the conic dual of~\eqref{eq:primal} after one rescaling ---
+$z_i=u_i(1,\,-(p_i-x)/R)$, which lies in $\mathcal{Q}^{d+1}$, is tight exactly on
+the support, and pairs with the slack $s_i=(R,\,p_i-x)$ to give $s_i\T z_i=0$.
+A solver built on this method therefore returns a standard-form primal--dual
+pair, and a caller can verify optimality from~\eqref{eq:kkt} in one pass over the
+data, without re-solving. That is what makes it usable behind a conic interface
+rather than only as a special-purpose routine; Section~\ref{sec:fgk} answers the
+same program but would have to solve~\eqref{eq:sub} once at the end to produce
+the weights.
 
 \section{A numerical comparison}
 \label{sec:numerics}
 
-Table~\ref{tab:bench} runs the two methods of Sections~\ref{sec:method}
-and~\ref{sec:fgk} beside two references: Clarabel~0.11.1 applied
-to~\eqref{eq:primal}, and Welzl's algorithm~\cite{welzl1991}. All four compute the
-same object on the same Gaussian clouds. Two quantities are reported, because
-either alone would mislead.
-
-The first is the relative enclosure error $\max_i\norm{p_i-x}/R-1$, where a
-positive value means the returned ball does not in fact contain the cloud. It is
-a deterministic property of the returned pair, free of timing noise. Here the
-three combinatorial methods are indistinguishable --- all come in at zero or a
-single ulp, against Clarabel's interior-point residuals three to five orders
-larger --- because each returns a radius that is by construction the maximum
-distance over its own support. The exactness is thus a property of terminating at
-a basis, and neither of the two methods here has any of it to itself.
-
-One ulp of that is worth naming, since it is the only place the three separate,
-and it is a difference between the two methods of this note. Section~\ref{sec:method}
-solves afresh for the circumcentre of its final support and lands on zero;
-Section~\ref{sec:fgk} reports the running sum of the walks that carried its centre
-there, and so shows a single positive ulp on four of the seven rows. Both identify the same support set. The difference is in the arithmetic
-that produces the centre, not in the combinatorics that select it, and at
-$2.2\cdot10^{-16}$ it is of no practical consequence --- it is recorded only
-because a column of exact zeros beside a column of ulps invites the wrong
-inference.
-
-The second is wall-clock time, and it must be read as a comparison of
-\emph{implementations}. Both methods of this note spend their time in one
-vectorised sweep per iteration, whereas Welzl's recursion
-evaluates a containment predicate per step in scalar Python; a good deal of the
-gap in the $t$ columns is CPython against NumPy rather than one algorithm against
-another. A step count is therefore given alongside each combinatorial method that
-has an informative one: the circumspheres Welzl computes, and the pivot steps the
-walking method takes. Both are properties of the algorithm and the input in any
-language --- but they count different things, a solve over at most $d+1$ points
-against a projection plus a sweep over all $n$, and so track each method against
-itself rather than against the other.
-
-\begin{table}[h]
-\centering
-\small
-\setlength{\tabcolsep}{3.5pt}
-\begin{tabular}{rr rrrr rrrr rr}
-  \toprule
-  & & \multicolumn{4}{c}{enclosure error} & \multicolumn{4}{c}{time (s)} & \multicolumn{2}{c}{steps} \\
-  \cmidrule(lr){3-6}\cmidrule(lr){7-10}\cmidrule(lr){11-12}
-  $n$ & $d$ & act.\ set & pivoting & Clarabel & Welzl
-      & act.\ set & pivoting & Clarabel & Welzl & pivots & bases \\
-  \midrule
-  $10^3$ &  2 & $0$                 & $-1.1\cdot10^{-16}$ & $5.3\cdot10^{-12}$  & $2.2\cdot10^{-16}$ & 0.000 & 0.000 & 0.008 & 0.010 & 3  & 265 \\
-  $10^3$ &  5 & $-2.2\cdot10^{-16}$ & $2.2\cdot10^{-16}$  & $-7.2\cdot10^{-12}$ & $2.2\cdot10^{-16}$ & 0.000 & 0.001 & 0.032 & 0.018 & 21 & 592 \\
-  $10^4$ &  3 & $0$                 & $0$                 & $3.8\cdot10^{-12}$  & $0$                & 0.001 & 0.001 & 0.175 & 0.452 & 10 & 2\,406 \\
-  $10^4$ & 20 & $0$                 & $2.2\cdot10^{-16}$  & $1.0\cdot10^{-12}$  & ---                & 0.006 & 0.015 & 0.983 & ---   & 90 & --- \\
-  $10^5$ &  2 & $0$                 & $2.2\cdot10^{-16}$  & $-8.0\cdot10^{-13}$ & $0$                & 0.003 & 0.007 & 1.524 & 0.953 & 5  & 813 \\
-  $10^5$ &  3 & $0$                 & $0$                 & $1.3\cdot10^{-10}$  & $0$                & 0.007 & 0.010 & 2.016 & 4.031 & 10 & 5\,998 \\
-  $10^5$ & 10 & $0$                 & $2.2\cdot10^{-16}$  & $-1.3\cdot10^{-12}$ & ---                & 0.020 & 0.051 & 7.168 & ---   & 43 & --- \\
-  \bottomrule
-\end{tabular}
-\caption{Standard normal clouds, one per row; median of three runs. Apple M4 Pro,
-CPython 3.12.13, NumPy 2.5.1, Clarabel 0.11.1 at default tolerances. Welzl was
-not attempted on the rows marked ---; Table~\ref{tab:sweep} measures that limit.
-The pivoting method runs the heuristic pivot rule of~\cite{fischer2003}, with the
-$QR$ of the edge matrix rebuilt each pivot rather than updated.}
-\label{tab:bench}
-\end{table}
-
-\begin{table}[h]
-\centering
-\small
-\setlength{\tabcolsep}{4.5pt}
-\begin{tabular}{l rrrrrrrrrr}
-  \toprule
-  $d$ & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 & 10 & 11 \\
-  \midrule
-  Welzl bases, median $/10^3$ & 0.19 & 1.05 & 2.50 & 6.4 & 12.0 & 21.4 & 58.6 & 115 & 189 & 276 \\
-  Welzl bases, worst $/10^3$  & 0.55 & 1.70 & 4.92 & 12.9 & 35.9 & 49.3 & 194  & 577 & 864 & 1602 \\
-  pivots, median              & 5 & 6 & 8 & 10 & 15 & 11 & 18 & 18 & 18 & 21 \\
-  pivots, worst               & 6 & 15 & 11 & 18 & 25 & 23 & 33 & 34 & 36 & 52 \\
-  Welzl time (s)              & 0.007 & 0.026 & 0.053 & 0.143 & 0.236 & 0.491 & 1.181 & 2.675 & 3.796 & 5.692 \\
-  pivoting time (ms)          & 0.2 & 0.3 & 0.4 & 0.5 & 1.0 & 0.8 & 1.3 & 0.9 & 0.9 & 1.1 \\
-  active-set time (ms)        & 0.2 & 0.3 & 0.3 & 0.4 & 0.5 & 0.5 & 1.0 & 0.6 & 0.6 & 0.6 \\
-  \bottomrule
-\end{tabular}
-\caption{Growth in $d$ at $n=10^3$: medians over 15 seeds, worst seed on the
-second line of each pair. Medians are necessary --- the basis count is
-high-variance, and a mean over five seeds still puts $d=11$ below $d=10$.}
-\label{tab:sweep}
-\end{table}
+Table~\ref{tab:highd} fixes $n=10^3$ and takes $d$ from $10^3$ to
+$1.6\cdot10^4$, the regime~\cite{fischer2003} was written for and the first in
+which the linear algebra rather than the combinatorics decides the cost. Two
+quantities are reported, because either alone would mislead. The first is the
+relative enclosure error $\max_i\norm{p_i-x}/R-1$, a deterministic property of the
+returned pair, free of timing noise, where a positive value means the ball does
+not in fact contain the cloud. The second is wall-clock time, which must be read
+as a comparison of \emph{implementations}: both methods spend most of each
+iteration in one vectorised sweep and one repair of the factorisation, so the step
+counts beside them are what carry over to another language.
 
 \begin{table}[h]
 \centering
@@ -630,152 +571,72 @@ high-variance, and a mean over five seeds still puts $d=11$ below $d=10$.}
   \bottomrule
 \end{tabular}
 \caption{Growth in $d$ at $n=10^3$: standard normal clouds, one per row, median of
-three runs. Same machine as Table~\ref{tab:bench}, with SciPy~1.18.0. Both methods
+three runs. Apple M4 Pro, CPython 3.12.13, NumPy 2.5.1, SciPy 1.18.0. Both methods
 repair the $QR$ of their support's edge matrix rather than rebuilding it, and both
 identify the same support set, whose size is the first column. \emph{Steps} are
-active-set iterations against pivot steps; unlike the pair in
-Table~\ref{tab:sweep} these two count comparable work, one solve or projection of
-order $r$ plus one $O(nd)$ sweep each. Welzl's method and Clarabel are not run
+active-set iterations against pivot steps, which count comparable work here: one
+solve or projection of order $r$ plus one $O(nd)$ sweep each. Welzl's method and Clarabel are not run
 here: neither finishes in this regime.}
 \label{tab:highd}
 \end{table}
 
-Table~\ref{tab:sweep} isolates the dependence on $d$ at fixed $n$. Welzl's median
-basis count rises from $191$ to $275\,574$ between $d=2$ and $d=11$, a factor
-between $1.5$ and $2.7$ per dimension across the upper half of that range, while
-both simplex-like methods stay under a millisecond throughout: their work per
-iteration is a solve or a projection of order at most $d$, and $d$ is small.
+Neither reference appears in the table. Welzl's median basis count is already
+$2.8\cdot10^5$ at $d=11$, and Clarabel would be handed a program of
+$n(d+1)\approx1.6\cdot10^7$ rows to factor. Both methods that remain repair the
+factorisation of their support rather than rebuilding it (Section~\ref{sec:qr}),
+which is what lets either appear here at all.
 
-The two step counts are what the sweep is really for, and they part company
-completely. Welzl's grows by three orders of magnitude over these ten dimensions;
-the pivot count grows from $5$ to $21$, by a factor of four. That is the
-separation the pivoting method was built for, and it is visible here at $d\le11$
-even though the regime it was built for begins far higher. The worst-seed lines
-matter as much as the medians. At $d=11$ one of fifteen clouds cost $1.6$~million
-basis computations, six times the median, where the worst pivot count is $52$
-against a median of $21$ --- a factor of $2.5$. Both distributions have a tail
-that a single measurement will not find, which is the practical form the
-expected-time analysis takes; the tails are simply not the same size.
+An active-set iteration and a pivot step each cost one solve or projection of
+order $r$ plus one $O(nd)$ sweep, so the two step counts are comparable here. They separate by
+about a factor of two, in the direction the mechanics predict. The active-set count
+equals the final support size on four of the five rows --- on Gaussian data the
+method adds points and essentially never drops one --- while the pivoting method
+takes $1.2$ to $2.1$ times as many steps, the price of never taking a full step:
+each walk is truncated by the first point of $S$ to touch the shrinking sphere.
+The wall clocks do not separate by anything like that factor. Their ratio sits
+between $1.1$ and $1.6$ with no trend in $d$, and repeat runs move it by a few
+percent, so it is a small constant rather than a curve: with $r$ in the hundreds
+both methods spend most of each iteration in the same two places, and the pivoting
+method's extra steps are its cheapest ones.
 
-Table~\ref{tab:highd} turns both of those tables around: $n=10^3$ fixed and $d$
-from $10^3$ to $1.6\cdot10^4$, which is the regime~\cite{fischer2003} was written
-for and the first one in which the linear algebra rather than the combinatorics
-decides the cost. Neither of the other two references appears in it. Welzl's
-median basis count is already $2.8\cdot10^5$ at $d=11$, and Clarabel would be
-handed a program of $n(d+1)\approx1.6\cdot10^7$ rows to factor. Both methods that
-remain repair the factorisation of their support rather than rebuilding it, as
-Section~\ref{sec:qr} describes, which is what lets either of them appear in this
-table at all.
+Two further things are worth naming. The support grows like $\sqrt d$ --- $92$
+points at $d=10^3$ and $283$ at $d=1.6\cdot10^4$ --- staying an order of magnitude
+below the Carath\'eodory bound $d+1$, so the per-iteration solve is of that order
+rather than of $d$; with $O(\sqrt d)$ iterations of $O(nd)$ each the total should
+scale as $d^{3/2}$, and it does, a $53$-fold increase in time over a $16$-fold
+increase in $d$. And the enclosure errors stay at a few ulp for both methods
+across four doublings of $d$: the exactness is a property of terminating at a
+basis, not of small $d$.
 
-The step counts are comparable in this table in a way the two of
-Table~\ref{tab:sweep} are not: an active-set iteration and a pivot step each cost
-one solve or projection of order $r$ plus one $O(nd)$ sweep. They separate by
-about a factor of two, in the direction the mechanics predict. The active-set
-count equals the final support size on four of the five rows --- on Gaussian data
-the method adds points and essentially never drops one, so it spends one iteration
-per support point, the $d=2\,000$ row costing four extra iterations for four drops
---- while the pivoting method takes $1.2$ to $2.1$ times as many steps. That is
-the price of never taking a full step: each walk is truncated by the first point of
-$S$ to touch the shrinking sphere, so a point enters after a partial move rather
-than after a jump to $\mathrm{cc}(F)$. The wall clocks do not separate by anything
-like that factor. Their ratio sits between $1.1$ and $1.6$ with no trend in $d$,
-and repeat runs of one row move it by a few percent, so it should be read as a
-small constant factor rather than as a curve: with $r$ in the hundreds both methods
-spend most of each iteration in the same two places, the sweep over the cloud and
-the repair of the factorisation, and the pivoting method's extra steps are its
-cheapest ones.
-
-Two further things in the table are worth naming. The support size grows like
-$\sqrt d$ on these clouds --- $92$ points at $d=10^3$ and $283$ at
-$d=1.6\cdot10^4$, a factor near $\sqrt2$ per doubling --- so it stays an order of
-magnitude or more below the Carath\'eodory bound $d+1$, and the per-iteration solve
-is of that order rather than of $d$. With $O(\sqrt d)$ iterations of $O(nd)$ each
-the total should scale as roughly $d^{3/2}$, and it does: a $53$-fold increase in
-time over a $16$-fold increase in $d$. And the enclosure errors stay at a few ulp,
-for both methods, across four doublings of $d$ --- so the exactness of
-Table~\ref{tab:bench} is a property of terminating at a basis, not of small $d$.
-
-Read against the paper being compared to, Table~\ref{tab:highd} runs to
-$d=1.6\cdot10^4$, past the $2\,000$~\cite{fischer2003} reports, with the same
-support on every row. Table~\ref{tab:bench} is the opposite regime and the one
-their analysis says least about: their per-pivot cost does not fall with $n$ while
-the $O(nd)$ sweep vectorises, and there too the two are separated by a small
-constant factor rather than by anything structural, their pivot counts running
-from $3$ to $90$.
-
-None of the three comparisons is fair to its subject, and the third is the least
-fair. Clarabel is built for large sparse programs of arbitrary shape, and Welzl's
-recursion is being run in the least favourable language for one. The pivoting
-method carries a narrower handicap, and only in Tables~\ref{tab:bench}
-and~\ref{tab:sweep}: its columns there were measured with the $QR$ of the edge
-matrix rebuilt at every pivot, where~\cite{fischer2003} updates it by Givens
-rotations in $O(d^2)$. At $d\le20$ that costs it little, the factorisation being of
-order at most $21$, which is why those two tables were left as measured and
-Table~\ref{tab:highd} --- where the data structure is the whole point --- runs both
-methods with it in place. At $d=20$ the pivoting method takes $2.5$ times the
-active-set time; nothing in that ratio should be carried to the $d\sim10^3$ regime
-their paper reports, and Table~\ref{tab:highd} is what happens there instead. That
-the specialised method wins on its own problem, in its own regime, against
-implementations chosen for clarity is the weakest possible claim, and the only one
-made here.
-
-\section{Relations to neighbouring methods}
-\label{sec:relations}
-
-\subsection*{Welzl's algorithm}
-\label{sec:welzl}
-
-Welzl's randomised incremental method~\cite{welzl1991} computes the same object
-and, as Table~\ref{tab:bench} confirms, terminates at an exact basis just as the
-two methods above do. It differs from both in how that basis is searched.
-
-Welzl's search is combinatorial: it recurses over subsets, drawing a point $p$ at
-random, solving without it, and re-solving with $p$ forced onto the boundary when
-$p$ falls outside the ball just computed. The permutation drives the recursion,
-the only arithmetic is the primitive that circumscribes at most $d+1$ points, and
-the analysis is that of LP-type problems --- expected $O(n)$ time for fixed $d$,
-with a constant known to grow superexponentially in $d$. The method of Section~\ref{sec:method}
-searches instead by ascent on $\varphi$: the weights choose the pivot, a negative
-barycentric coordinate calling for a drop and the farthest violator for an
-addition. The search is monotone, local, deterministic, and admits add
-\emph{and} drop steps; what it does not admit is an expected-time bound, and
-Section~\ref{sec:method} claims none.
-
-Table~\ref{tab:sweep} is the practical shape of that difference: at fixed $n$ the
-recursion's cost climbs by a factor of two or so per dimension and carries a long
-upper tail, while a solve of order $d$ does not notice $d$ in this range. The
-other difference is the certificate. Welzl's recursion yields the ball and its
-basis; the method above yields the barycentric weights as well, which are what
-make~\eqref{eq:kkt} checkable in one pass and what become~\eqref{eq:conic-dual}
-when a conic interface asks for a dual. The weights can be recovered from a basis
-by solving~\eqref{eq:sub}, but they are not a by-product of the search there,
-whereas here they \emph{are} the search --- which is also why a support set warm
-starts a perturbed cloud and a fresh random permutation cannot.
-
-G\"artner's robust implementation~\cite{gaertner1999} addresses the fragility of
-the recursion's predicates; Section~\ref{sec:invariance} answers the same question here.
-
-
-\subsection*{The minimum-norm point problem}
-\label{sec:minnorm}
-
-If all points have equal norm $\rho$ --- after the standard lift of a kernel
-problem onto a sphere, say --- then~\eqref{eq:phi} reduces to
-$\varphi(u)=\rho^2-\norm{x(u)}^2$, and maximising it over $\Delta_n$ is
-minimising $\norm{x}$ over $\conv S$: the minimum-norm point problem of
-Wolfe~\cite{wolfe1976} and of the Frank--Wolfe family~\cite{frank1956}. The
-working set is then Wolfe's corral, the subproblem~\eqref{eq:sub} his affine
-minimiser, the drop step his major cycle. Restoring the linear term
-$\sum_iu_i\norm{p_i}^2$ gives the general case, and is what makes the subproblem
-a circumcentre rather than a projection.
+The table runs past the $d=2\,000$ of~\cite{fischer2003} with the same support on
+every row, and both columns were measured with the factorisation repaired rather
+than rebuilt --- so the ratio between them measures what the two searches cost and
+not what two data structures cost. Neither is a tuned implementation, and their
+agreement to within a small constant factor is therefore a claim about the methods
+rather than about the code.
 
 \section{Notes}
 \label{sec:notes}
 
-Of the two exact lines of work Section~\ref{sec:intro} sketches, the method of
+Welzl's recursion searches the same basis combinatorially, driven by a random
+permutation, with the analysis of LP-type problems behind it; both methods here
+search by pivoting instead, monotonically and deterministically, and claim no
+expected-time bound in exchange. If all points share a norm --- after the standard
+lift of a kernel problem onto a sphere, say ---
+then~\eqref{eq:phi} reduces to $\varphi(u)=\rho^2-\norm{x(u)}^2$ and
+Section~\ref{sec:method} becomes the minimum-norm point method of
+Wolfe~\cite{wolfe1976}, its working set his corral and~\eqref{eq:sub} his affine
+minimiser; the linear term $\sum_iu_i\norm{p_i}^2$ is what makes the subproblem a
+circumcentre rather than a projection.
+
+Of the two lines of work Section~\ref{sec:intro} sketches, the method of
 Section~\ref{sec:fgk} is the geometric one and that of Section~\ref{sec:method}
-the quadratic-programming one, after G\"artner and
-Sch\"onherr~\cite{gaertner2000}, whose reservation that a QP formulation needed
+the quadratic-programming one, running from G\"artner and
+Sch\"onherr~\cite{gaertner2000} through Dearing and Zeck~\cite{dearing2009} to
+Cavaleiro and Alizadeh~\cite{cavaleiro2018,cavaleiro2021}. The last of these
+reports $d=5\cdot10^3$ at $n=10^5$ in MATLAB, against $d=1.6\cdot10^4$ at
+$n=10^3$ here; the two sweep different axes and are not directly comparable.
+G\"artner and Sch\"onherr's reservation that a QP formulation needed
 exact arithmetic past a few hundred dimensions Table~\ref{tab:highd} bears on
 without settling: in double precision the method returns a ball out to
 $d=1.6\cdot10^4$ whose enclosure error is a few ulp, on Gaussian clouds, which are
@@ -783,13 +644,22 @@ not the inputs that reservation was about. The QP machinery is standard~\cite{no
 implementation of the method, of the pivoting method of Section~\ref{sec:fgk}, of the
 Goldfarb--Idnani core, and of the conic front end is available at
 \url{https://github.com/tschm/cvxball}, where the two methods this note compares
-ship side by side and the Clarabel and Welzl routes of Table~\ref{tab:bench} sit
-beside them as references.
+ship side by side with the Clarabel and Welzl routes beside them as
+references.
 
 \begin{thebibliography}{9}
 \footnotesize
-\setlength{\itemsep}{1pt}
+\setlength{\itemsep}{0pt}
 \setlength{\parskip}{0pt}
+\bibitem{cavaleiro2018} M.~Cavaleiro and F.~Alizadeh. A faster dual algorithm
+  for the Euclidean minimum covering ball problem. \emph{Annals of Operations
+  Research}, 2018. DOI 10.1007/s10479-018-3123-5.
+\bibitem{cavaleiro2021} M.~Cavaleiro and F.~Alizadeh. A dual simplex-type
+  algorithm for the smallest enclosing ball of balls. \emph{Computational
+  Optimization and Applications} 79(3):767--787, 2021.
+\bibitem{dearing2009} P.~M.~Dearing and C.~R.~Zeck. A dual algorithm for the
+  minimum covering ball problem in $\R^n$. \emph{Operations Research Letters}
+  37(3):171--175, 2009.
 \bibitem{elzinga1972} J.~Elzinga and D.~W.~Hearn. Geometrical solutions for some
   minimax location problems. \emph{Transportation Science} 6(4):379--394, 1972.
 \bibitem{fischer2003} K.~Fischer, B.~G\"artner and M.~Kutz. Fast
@@ -800,9 +670,6 @@ beside them as references.
 \bibitem{gaertner2000} B.~G\"artner and S.~Sch\"onherr. An efficient, exact,
   and generic quadratic programming solver for geometric optimization.
   \emph{Proc.\ 16th Annu.\ ACM Sympos.\ Comput.\ Geom.}, 110--118, 2000.
-\bibitem{goldfarb1983} D.~Goldfarb and A.~Idnani. A numerically stable dual
-  method for solving strictly convex quadratic programs. \emph{Mathematical
-  Programming} 27:1--33, 1983.
 \bibitem{hexaly} Hexaly. Smallest circle problem. Modelling template,
   \url{https://www.hexaly.com/templates/smallest-circle-problem}, accessed
   September 2026.
@@ -814,8 +681,6 @@ beside them as references.
   gradients. arXiv:2607.22121, 2026.
 \bibitem{sylvester1857} J.~J.~Sylvester. A question in the geometry of
   situation. \emph{Quarterly Journal of Pure and Applied Mathematics} 1:79, 1857.
-\bibitem{frank1956} M.~Frank and P.~Wolfe. An algorithm for quadratic
-  programming. \emph{Naval Research Logistics Quarterly} 3:95--110, 1956.
 \bibitem{welzl1991} E.~Welzl. Smallest enclosing disks (balls and ellipsoids).
   \emph{New Results and New Trends in Computer Science}, LNCS 555, 359--370, 1991.
 \bibitem{wolfe1976} P.~Wolfe. Finding the nearest point in a polytope.
