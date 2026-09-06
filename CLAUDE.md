@@ -105,7 +105,7 @@ Rhiza (then re-sync).
 - `experiments/` — reference implementations and benchmarks. Outside `packages`
   and `testpaths`, so the coverage, docstring and type gates do not reach it;
   `ruff` and `ruff-format` do.
-- `docs/paper/seb.tex` — the six-page companion note: the two methods in a
+- `docs/paper/seb.tex` — the five-page companion note: the two methods in a
   common notation, the factorisation they share, what the Clarabel cone program
   costs beside them, and the benchmark table that compares the two with that
   linear algebra held fixed. It sits
