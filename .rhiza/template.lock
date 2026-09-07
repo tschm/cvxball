@@ -1,7 +1,7 @@
-sha: 2955fe77885ad31532579eea11905f4aefb17260
+sha: 371314b93a460e27d648c87377e8fa252bd92d15
 repo: jebel-quant/rhiza
 host: github
-ref: v1.7.2
+ref: v1.8.0
 include: []
 exclude:
 - .github/CONFIG.md
@@ -38,5 +38,5 @@ files:
 - pytest.ini
 - ruff.toml
 - tests/test_rhiza_packaging.py
-synced_at: '2026-09-04T12:19:34Z'
+synced_at: '2026-09-07T17:58:08Z'
 strategy: merge
