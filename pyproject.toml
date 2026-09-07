@@ -1,6 +1,8 @@
 [project]
 name = 'cvxball'
-version = "1.0.2"
+# Derived from the git tag by hatch-vcs (see [tool.hatch.version]) rather than written
+# here, so the tag is the single source of truth and no commit can disagree with it.
+dynamic = ["version"]
 description = "Fast computation of the smallest enclosing sphere"
 authors = [{name='Thomas Schmelzer', email= 'thomas.schmelzer@gmail.com'}]
 readme = "README.md"
@@ -64,11 +66,28 @@ test = [
 # here would never execute and could silently disagree with the hook's.
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cvxball"]
+
+[tool.hatch.version]
+# Resolves [project].dynamic = ["version"] from `git describe`. hatch-vcs strips a
+# leading "v" by default and accepts tags with or without it, so both this repo's older
+# bare tags (0.1.0, 0.2.0) and the vX.Y.Z tags rhiza cuts resolve the same way.
+#
+# NOTE the version this currently derives is *lower* than the 1.0.2 that used to be
+# written here: the newest tag in this repo is 0.2.0, so an off-tag build reads
+# 0.2.1.devN+g<sha>. That was accepted deliberately -- cvxball is not published to PyPI,
+# so nothing depends on the ordering, and the next real release tag reconciles it.
+#
+# This makes the build history-dependent: a shallow clone that cannot see the tag does
+# not fail, it silently builds 0.1.dev1+g<sha>. Every checkout in rhiza_release.yml uses
+# fetch-depth: 0, and its "Verify built distribution matches the tag" step parses the
+# filename in dist/ and fails the release unless it carries the tag -- nothing earlier
+# can catch a wrong derived version.
+source = "vcs"
 
 # Back after a spell away. It existed to silence `import-untyped` for clarabel and
 # scipy, and went when the cone program moved to `experiments/` and left `src`
@@ -102,6 +121,14 @@ package_module_name_map = { clarabel = "clarabel", numpy = "numpy", scipy = "sci
 [tool.rhiza-task]
 ci-os-matrix = ["ubuntu-latest", "macos-latest", "windows-latest"]
 
+# Pinned when [project].version became dynamic. This repo carried no pin, so the gate
+# took the rhiza CLI default -- and every pytest-rhiza up to and including 0.5.0 reads
+# `project["version"]` unconditionally, so a derived version fails
+# test_version_follows_semver (empty string against the semver regex) and the git-tag
+# comparison (InvalidVersion on ""). 0.6.0 is the first release that asks whether the
+# version is dynamic and skips those two assertions.
+pytest-rhiza = "pytest-rhiza==0.6.0"
+
 # Release versioning. Carried over from `.rhiza/.cfg.toml`, which rhiza v1.7.2 stopped
 # managing: that path is never auto-discovered by bump-my-version (it predates
 # jebel-quant/rhiza#1453), so leaving the config there meant `bump-my-version` silently
@@ -115,6 +142,12 @@ ci-os-matrix = ["ubuntu-latest", "macos-latest", "windows-latest"]
 # `pre_commit_hooks = ["uv sync", "git add uv.lock"]` went with them -- those run only
 # as part of a commit bump-my-version no longer makes, so relocking is the release
 # flow's job too.
+#
+# There is no [[tool.bumpversion.files]] entry any more: it rewrote [project].version,
+# which is now dynamic (see [tool.hatch.version]), so nothing writes the version down
+# and a release is a tag rather than an edit. The table stays because bump-my-version
+# still has to *discover* a config -- from a path it never reads it falls back to
+# `git describe` -- and because the settings below still bind if it is run.
 [tool.bumpversion]
 parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)(?:[-]?(?P<release>[a-z]+)[\\.]?(?P<pre_n>\\d+))?(?:\\+build\\.(?P<build_n>\\d+))?"
 serialize = ["{major}.{minor}.{patch}-{release}.{pre_n}+build.{build_n}", "{major}.{minor}.{patch}+build.{build_n}", "{major}.{minor}.{patch}-{release}.{pre_n}", "{major}.{minor}.{patch}"]
@@ -143,8 +176,3 @@ values = [
     "rc",
     "prod"
 ]
-
-[[tool.bumpversion.files]]
-filename = "pyproject.toml"
-search = 'version = "{current_version}"'
-replace = 'version = "{new_version}"'
