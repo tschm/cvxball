@@ -43,7 +43,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v9.0.0
         with:
-          version: "0.11.32"
+          version: "0.13.9"
 
       # Audit the committed lockfile rather than a fresh resolve, so this reports
       # on the versions the project actually pins. Runtime dependencies only:
@@ -89,7 +89,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v9.0.0
         with:
-          version: "0.11.32"
+          version: "0.13.9"
 
       # mypy needs the project's dependencies importable to resolve numpy's own
       # annotations; --frozen keeps it on the committed lockfile.
