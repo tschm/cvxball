@@ -14,6 +14,10 @@ exclude:
   - .github/CONFIG.md
   - .github/rulesets/main-branch-protection.json
   - .github/rulesets/tag-protection.json
+  # dependabot.yml is trimmed to the uv ecosystem: only pyproject.toml dependencies get
+  # update PRs here. GitHub Actions in the rhiza workflows are pinned by the template
+  # and move with rhiza sync, so Dependabot bumps to them would only drift and conflict.
+  - .github/dependabot.yml
 
 profiles:
   - github-project
